@@ -60,7 +60,7 @@ modules:
       builder: custom
       commands:
         - npm ci
-        - npm run build --prod
+        - npm run build:prod
       supported-platforms: []
 
   - name: InStoreOrderCreationApp-app-deployer
