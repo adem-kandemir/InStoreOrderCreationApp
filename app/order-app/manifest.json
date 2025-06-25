@@ -1,0 +1,34 @@
+{
+  "_version": "1.59.0",
+  "sap.app": {
+    "id": "com.sap.instoreorderapp",
+    "type": "application",
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
+    "title": "In-Store Order Creation App",
+    "description": "Application for creating and managing in-store orders",
+    "tags": {
+      "keywords": ["order", "store", "management"]
+    }
+  },
+  "sap.ui": {
+    "technology": "Angular",
+    "icons": {
+      "icon": "sap-icon://cart"
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "dependencies": {
+      "minUI5Version": "1.60.0"
+    }
+  },
+  "sap.platform.hcp": {
+    "uri": "order-app"
+  }
+} 

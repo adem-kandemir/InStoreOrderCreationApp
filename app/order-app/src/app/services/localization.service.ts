@@ -114,6 +114,39 @@ export class LocalizationService {
         newOrder: 'New Order'
       },
       
+      // Unauthorized
+      unauthorized: {
+        title: 'Access Denied',
+        message: 'You do not have the necessary permissions to access this application.',
+        currentUser: 'Current User',
+        roles: 'Assigned Roles',
+        contactAdmin: 'Contact Administrator',
+        logout: 'Logout'
+      },
+      
+      // Settings
+      settings: {
+        title: 'Settings',
+        description: 'Customize your application appearance and preferences.',
+        appInfo: 'Application Information',
+        companyName: 'Company Name',
+        appTitle: 'Application Title',
+        customization: 'Customization',
+        favicon: 'Favicon',
+        faviconDesc: 'Upload a custom favicon for your browser tab (recommended: 32x32px, max 1MB)',
+        banner: 'Banner Image',
+        bannerDesc: 'Upload a banner image for your application header (recommended: 1200x200px)',
+        userAvatar: 'Default User Avatar',
+        userAvatarDesc: 'Upload a default avatar image for users (recommended: square image)',
+        chooseFavicon: 'Choose Favicon',
+        chooseBanner: 'Choose Banner',
+        chooseAvatar: 'Choose Avatar',
+        uploading: 'Uploading',
+        remove: 'Remove',
+        actions: 'Actions',
+        resetDefaults: 'Reset to Defaults'
+      },
+      
       // Common
       common: {
         back: 'Back',
@@ -218,6 +251,39 @@ export class LocalizationService {
         title: 'Etwas ist schief gelaufen und die Bestellung wurde nicht erfolgreich aufgegeben :(',
         message: 'Bitte versuchen Sie es erneut oder wenden Sie sich an Ihren IT-Administrator.',
         newOrder: 'Neue Bestellung'
+      },
+      
+      // Unauthorized
+      unauthorized: {
+        title: 'Zugriff verweigert',
+        message: 'Sie haben nicht die erforderlichen Berechtigungen, um auf diese Anwendung zuzugreifen.',
+        currentUser: 'Aktueller Benutzer',
+        roles: 'Zugewiesene Rollen',
+        contactAdmin: 'Administrator kontaktieren',
+        logout: 'Abmelden'
+      },
+      
+      // Settings
+      settings: {
+        title: 'Einstellungen',
+        description: 'Passen Sie das Erscheinungsbild und die Einstellungen Ihrer Anwendung an.',
+        appInfo: 'Anwendungsinformationen',
+        companyName: 'Firmenname',
+        appTitle: 'Anwendungstitel',
+        customization: 'Anpassung',
+        favicon: 'Favicon',
+        faviconDesc: 'Laden Sie ein benutzerdefiniertes Favicon für Ihren Browser-Tab hoch (empfohlen: 32x32px, max 1MB)',
+        banner: 'Banner-Bild',
+        bannerDesc: 'Laden Sie ein Banner-Bild für Ihren Anwendungsheader hoch (empfohlen: 1200x200px)',
+        userAvatar: 'Standard-Benutzer-Avatar',
+        userAvatarDesc: 'Laden Sie ein Standard-Avatar-Bild für Benutzer hoch (empfohlen: quadratisches Bild)',
+        chooseFavicon: 'Favicon wählen',
+        chooseBanner: 'Banner wählen',
+        chooseAvatar: 'Avatar wählen',
+        uploading: 'Wird hochgeladen',
+        remove: 'Entfernen',
+        actions: 'Aktionen',
+        resetDefaults: 'Auf Standard zurücksetzen'
       },
       
       // Common

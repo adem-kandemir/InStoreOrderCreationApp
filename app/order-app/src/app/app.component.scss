@@ -3,7 +3,28 @@
   background-color: #f5f5f5;
 }
 
+.custom-banner {
+  width: 100%;
+  max-height: 200px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+  
+  .banner-image {
+    width: 100%;
+    height: auto;
+    max-height: 200px;
+    object-fit: cover;
+    object-position: center;
+  }
+}
+
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
   background-color: white;
   border-bottom: 1px solid #e0e0e0;
   padding: 0 24px;
@@ -28,6 +49,21 @@
   align-items: center;
   gap: 16px;
   min-width: 200px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  margin: -4px;
+  
+  &:hover {
+    background: rgba(0, 180, 216, 0.08);
+    transform: translateY(-0.5px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+    background: rgba(0, 180, 216, 0.12);
+  }
 }
 
 .logo-icon {
@@ -95,6 +131,22 @@
   gap: 16px;
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  .user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .settings-btn {
   background: none;
   border: none;
@@ -112,31 +164,41 @@
 
 .language-selector {
   display: flex;
-  gap: 4px;
-  background: #f5f5f5;
-  border-radius: 6px;
-  padding: 2px;
   
-  .lang-btn {
-    background: none;
-    border: none;
+  .lang-toggle-btn {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
     padding: 6px 10px;
-    border-radius: 4px;
     font-size: 12px;
     font-weight: 500;
     color: #666;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     
     &:hover {
       background: #e0e0e0;
       color: #333;
+      border-color: #ccc;
     }
     
-    &.active {
-      background: #00b4d8;
-      color: white;
+    &:active {
+      transform: translateY(1px);
+    }
+    
+    .flag-icon {
+      flex-shrink: 0;
+      font-size: 16px;
+      line-height: 1;
+    }
+    
+    .lang-text {
       font-weight: 600;
+      min-width: 20px;
+      text-align: center;
     }
   }
 }

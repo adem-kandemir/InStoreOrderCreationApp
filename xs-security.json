@@ -1,6 +1,56 @@
 {
-  "scopes": [],
+  "xsappname": "InStoreOrderCreationApp",
+  "tenant-mode": "dedicated",
+  "description": "In-Store Order Creation Application",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.OrderCreator",
+      "description": "Create and manage orders"
+    },
+    {
+      "name": "$XSAPPNAME.OrderViewer", 
+      "description": "View orders"
+    },
+    {
+      "name": "$XSAPPNAME.Admin",
+      "description": "Administrative access to the application"
+    }
+  ],
   "attributes": [],
-  "role-templates": [],
-  "authorities-inheritance": false
+  "role-templates": [
+    {
+      "name": "OrderCreator",
+      "description": "Role for creating and managing orders",
+      "scope-references": [
+        "$XSAPPNAME.OrderCreator",
+        "$XSAPPNAME.OrderViewer"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "OrderViewer",
+      "description": "Role for viewing orders only",
+      "scope-references": [
+        "$XSAPPNAME.OrderViewer"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "Administrator",
+      "description": "Administrative role with full access",
+      "scope-references": [
+        "$XSAPPNAME.OrderCreator",
+        "$XSAPPNAME.OrderViewer",
+        "$XSAPPNAME.Admin"
+      ],
+      "attribute-references": []
+    }
+  ],
+  "authorities-inheritance": false,
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "https://*.cfapps.*.hana.ondemand.com/**",
+      "https://*.hana.ondemand.com/**"
+    ]
+  }
 }

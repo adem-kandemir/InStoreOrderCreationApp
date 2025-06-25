@@ -1,10 +1,31 @@
 {
+  "welcomeFile": "/index.html",
+  "authenticationMethod": "route",
+  "logout": {
+    "logoutEndpoint": "/do/logout"
+  },
   "routes": [
     {
-      "source": "^/(.*)$",
+      "source": "^/api/(.*)$",
       "target": "$1",
       "destination": "srv-api",
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.OrderViewer",
       "csrfProtection": true
+    },
+    {
+      "source": "^/order-app/(.*)$",
+      "target": "/order-app/$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.OrderViewer"
+    },
+    {
+      "source": "^/(.*)$",
+      "target": "/order-app/$1",
+      "service": "html5-apps-repo-rt", 
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.OrderViewer"
     }
   ]
 }
