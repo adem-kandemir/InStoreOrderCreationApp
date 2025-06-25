@@ -1,0 +1,43 @@
+<div class="app-container">
+  <header class="app-header">
+    <div class="header-content">
+      <div class="logo-section">
+        <div class="logo-icon">
+          <img src="assets/icons/logo.png?v=4" alt="Order App Logo" 
+               class="app-logo-image"
+               style="width: 80px !important; height: 80px !important; object-fit: contain !important; min-width: 80px !important; min-height: 80px !important; max-width: 80px !important; max-height: 80px !important;"
+               (error)="onImageError($event)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: none;">
+            <circle cx="12" cy="12" r="10" stroke="#00b4d8" stroke-width="2"/>
+            <path d="M8 12l2 2 4-4" stroke="#00b4d8" stroke-width="2" fill="none"/>
+          </svg>
+        </div>
+        <span class="app-title">Order App</span>
+      </div>
+      
+      <nav class="main-nav">
+        <a routerLink="/new-order" routerLinkActive="active" class="nav-link">New Order</a>
+        <a routerLink="/orders" routerLinkActive="active" class="nav-link">Orders</a>
+      </nav>
+      
+      <div class="user-section">
+        <button class="settings-btn" title="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </button>
+        <span class="language-selector">EN</span>
+        <div class="user-avatar">
+          <img src="assets/icons/user-avatar.png" alt="User Avatar"
+               (error)="onImageError($event)">
+          <div class="avatar-placeholder" style="display: none;">JD</div>
+        </div>
+      </div>
+    </div>
+  </header>
+  
+  <main class="app-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

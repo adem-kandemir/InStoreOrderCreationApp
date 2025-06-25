@@ -1,0 +1,162 @@
+.app-container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.app-header {
+  background-color: white;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 24px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 8px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 200px;
+}
+
+.logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  
+  img, .app-logo-image {
+    width: 80px !important;
+    height: 80px !important;
+    object-fit: contain !important;
+    max-width: 80px !important;
+    max-height: 80px !important;
+    min-width: 80px !important;
+    min-height: 80px !important;
+  }
+}
+
+.app-logo-image {
+  width: 80px !important;
+  height: 80px !important;
+  object-fit: contain !important;
+  max-width: 80px !important;
+  max-height: 80px !important;
+  min-width: 80px !important;
+  min-height: 80px !important;
+}
+
+.app-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.main-nav {
+  display: flex;
+  gap: 32px;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: #666;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: #00b4d8;
+    background-color: #f0f9ff;
+  }
+
+  &.active {
+    color: #00b4d8;
+    background-color: #e0f7ff;
+  }
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  color: #666;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: #f0f0f0;
+    color: #333;
+  }
+}
+
+.language-selector {
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: #f0f0f0;
+  }
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid #e0e0e0;
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: #00b4d8;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #00b4d8;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+.app-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}

@@ -1,0 +1,94 @@
+<div class="orders-container">
+  <div class="orders-header">
+    <h1>Order History</h1>
+    <p>View and manage your recent orders</p>
+  </div>
+
+  <div *ngIf="loading" class="loading-state">
+    <div class="loading-spinner"></div>
+    <p>Loading orders...</p>
+  </div>
+
+  <div *ngIf="!loading && orders.length === 0" class="empty-state">
+    <div class="empty-icon">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    </div>
+    <h3>No orders found</h3>
+    <p>You haven't placed any orders yet.</p>
+    <a routerLink="/new-order" class="create-order-btn">Create New Order</a>
+  </div>
+
+  <div *ngIf="!loading && orders.length > 0" class="orders-list">
+    <div *ngFor="let order of orders" class="order-card">
+      <div class="order-header">
+        <div class="order-info">
+          <h3>Order #{{ order.confirmationNumber }}</h3>
+          <p class="order-date">{{ order.createdAt | date:'medium' }}</p>
+        </div>
+        <div class="order-status">
+          <span class="status-badge" [ngClass]="getStatusClass(order.status)">
+            {{ getStatusText(order.status) }}
+          </span>
+        </div>
+      </div>
+
+      <div class="order-details">
+        <div class="customer-info">
+          <h4>Customer</h4>
+          <p>{{ order.customer.firstName }} {{ order.customer.lastName }}</p>
+          <p>{{ order.customer.email }}</p>
+          <p>{{ order.customer.address.line1 }}, {{ order.customer.address.city }}</p>
+        </div>
+
+        <div class="order-items">
+          <h4>Items ({{ order.items.length }})</h4>
+          <div *ngFor="let item of order.items" class="order-item">
+            <div class="item-info">
+                             <img [src]="item.product.image" 
+                    [alt]="item.product.description" 
+                    class="item-image"
+                    (error)="onImageError($event)">
+              <div class="item-details">
+                <span class="item-name">{{ item.product.description }}</span>
+                <span class="item-meta">ID: {{ item.product.id }} | EAN: {{ item.product.ean }}</span>
+                <span class="item-quantity">Quantity: {{ item.quantity }}</span>
+              </div>
+            </div>
+            <div class="item-pricing">
+              <span class="item-price">{{ item.price | currency:'EUR':'symbol':'1.2-2' }}</span>
+              <span class="item-total">{{ item.total | currency:'EUR':'symbol':'1.2-2' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="order-summary">
+          <h4>Order Summary</h4>
+          <div class="summary-row">
+            <span>Subtotal:</span>
+            <span>{{ order.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Discount:</span>
+            <span>-{{ order.discount | currency:'EUR':'symbol':'1.2-2' }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Shipping:</span>
+            <span>{{ order.shippingCost | currency:'EUR':'symbol':'1.2-2' }}</span>
+          </div>
+          <div class="summary-row total">
+            <span>Total:</span>
+            <span>{{ order.finalTotal | currency:'EUR':'symbol':'1.2-2' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="order-actions">
+        <button class="action-btn secondary">View Details</button>
+        <button class="action-btn secondary">Download Invoice</button>
+        <button *ngIf="order.status === 'confirmed'" class="action-btn danger">Cancel Order</button>
+      </div>
+    </div>
+  </div>
+</div> 
