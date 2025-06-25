@@ -5,13 +5,15 @@ import { Observable } from 'rxjs';
 
 import { ProductService } from '../../services/product.service';
 import { CartService } from '../../services/cart.service';
+import { LocalizationService } from '../../services/localization.service';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 import { Product, ProductSearchResult } from '../../models/product.interface';
 import { Cart, CartItem, CustomerDetails, ShippingOption, PaymentOption, Order } from '../../models/cart.interface';
 
 @Component({
   selector: 'app-new-order',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe],
   templateUrl: './new-order.component.html',
   styleUrls: ['./new-order.component.scss']
 })
@@ -46,6 +48,7 @@ export class NewOrderComponent implements OnInit {
   constructor(
     private productService: ProductService,
     private cartService: CartService,
+    private localizationService: LocalizationService,
     private fb: FormBuilder
   ) {
     this.cart$ = this.cartService.cart$;
@@ -109,20 +112,45 @@ export class NewOrderComponent implements OnInit {
 
   proceedToCustomerDetails(): void {
     this.currentStep = 'customer';
+    // Scroll to the customer section
+    setTimeout(() => {
+      const customerSection = document.querySelector('.customer-section');
+      if (customerSection) {
+        customerSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   }
 
   proceedToPayment(): void {
     if (this.customerForm.valid) {
       this.currentStep = 'payment';
+      // Scroll to the payment section
+      setTimeout(() => {
+        const paymentSection = document.querySelector('.payment-section');
+        if (paymentSection) {
+          paymentSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
     }
   }
 
   goBackToCart(): void {
-    this.currentStep = 'cart';
+    this.currentStep = 'search';
+    // Scroll back to top
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
   }
 
   goBackToCustomer(): void {
     this.currentStep = 'customer';
+    // Scroll to the customer section
+    setTimeout(() => {
+      const customerSection = document.querySelector('.customer-section');
+      if (customerSection) {
+        customerSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   }
 
   placeOrder(): void {

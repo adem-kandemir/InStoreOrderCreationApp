@@ -1,13 +1,13 @@
 <div class="new-order-container">
-  <!-- Search and Product Selection View -->
-  <div *ngIf="currentStep === 'search'" class="search-view">
+  <!-- Search and Product Selection View (always visible unless success/error) -->
+  <div *ngIf="currentStep !== 'success' && currentStep !== 'error'" class="search-view">
     <div class="search-section">
       <div class="search-bar">
         <input 
           type="text" 
           [(ngModel)]="searchQuery" 
           (keyup.enter)="onSearch()"
-          placeholder="Search products by description or number"
+          [placeholder]="'search.placeholder' | translate"
           class="search-input">
         <button class="barcode-btn" title="Scan barcode">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -21,17 +21,17 @@
         </button>
       </div>
       
-      <div *ngIf="isSearching" class="loading">Searching...</div>
+      <div *ngIf="isSearching" class="loading">{{ 'search.searching' | translate }}</div>
       
       <div *ngIf="searchResults.length > 0 && !isSearching" class="search-results">
         <table class="results-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>EAN</th>
-              <th>Product description</th>
-              <th>List price</th>
-              <th>Unit</th>
+              <th>{{ 'table.id' | translate }}</th>
+              <th>{{ 'table.ean' | translate }}</th>
+              <th>{{ 'table.description' | translate }}</th>
+              <th>{{ 'table.listPrice' | translate }}</th>
+              <th>{{ 'table.unit' | translate }}</th>
             </tr>
           </thead>
           <tbody>
@@ -52,8 +52,8 @@
     <div class="content-area">
       <div class="product-details">
         <div class="product-details-header">
-          <h3>Product details</h3>
-          <button class="refresh-btn" title="Refresh product details">
+          <h3>{{ 'productDetails.title' | translate }}</h3>
+          <button class="refresh-btn" [title]="'productDetails.refresh' | translate">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M1 4v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -80,7 +80,7 @@
               <div class="product-main-info">
                 <h4>{{ selectedProduct.description }}</h4>
                 <p class="price">{{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
-                <p class="list-price">Listenpreis: {{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
+                <p class="list-price">{{ 'productDetails.listPrice' | translate }}: {{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
               </div>
               
               <div class="product-meta">
@@ -98,7 +98,7 @@
                 </div>
                 
                 <button class="add-to-cart-btn" (click)="addToCart(selectedProduct)">
-                  zum Warenkorb hinzufügen
+                  {{ 'productDetails.addToCart' | translate }}
                 </button>
               </div>
             </div>
@@ -106,16 +106,16 @@
             <div class="availability">
               <div class="stock-info">
                 <span class="stock-icon">✓</span>
-                <span>In Filiale verfügbar ({{ selectedProduct.inStoreStock }} Stück)</span>
+                <span>{{ 'productDetails.inStore' | translate }} ({{ selectedProduct.inStoreStock }} {{ 'productDetails.pieces' | translate }})</span>
               </div>
               <div class="stock-info">
                 <span class="stock-icon">✓</span>
-                <span>Online verfügbar ({{ selectedProduct.onlineStock }} Stück)</span>
+                <span>{{ 'productDetails.online' | translate }} ({{ selectedProduct.onlineStock }} {{ 'productDetails.pieces' | translate }})</span>
               </div>
             </div>
             
             <div class="other-locations">
-              <span>Bestand in weiteren Filialen ({{ (selectedProduct.inStoreStock || 0) + 20 }} Stück) ></span>
+              <span>{{ 'productDetails.otherLocations' | translate }} ({{ (selectedProduct.inStoreStock || 0) + 20 }} {{ 'productDetails.pieces' | translate }}) ></span>
             </div>
           </div>
         </div>
@@ -127,13 +127,13 @@
               <path d="M9 12h6" stroke="currentColor" stroke-width="2"/>
             </svg>
           </div>
-          <p>No product selected</p>
-          <p class="instruction">Start by searching for a product via the search bar.</p>
+          <p>{{ 'search.noResults' | translate }}</p>
+          <p class="instruction">{{ 'search.placeholder' | translate }}</p>
         </div>
       </div>
 
       <div class="cart-section">
-        <h3>Cart</h3>
+        <h3>{{ 'cart.title' | translate }}</h3>
         <div class="cart-content" *ngIf="cart$ | async as cart">
           <div *ngIf="cart.items.length === 0" class="empty-cart">
             <div class="empty-cart-icon">
@@ -141,17 +141,17 @@
                 <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2"/>
               </svg>
             </div>
-            <p>Cart is empty</p>
-            <p class="instruction">Please select a product and add it to the cart.</p>
+            <p>{{ 'cart.empty' | translate }}</p>
+            <p class="instruction">{{ 'cart.emptyInstruction' | translate }}</p>
           </div>
           
           <div *ngIf="cart.items.length > 0" class="cart-items">
             <div class="cart-header">
-              <span>Product</span>
-              <span>Quantity</span>
-              <span>List price</span>
-              <span>Price</span>
-              <span>Total</span>
+              <span>{{ 'cart.product' | translate }}</span>
+              <span>{{ 'cart.quantity' | translate }}</span>
+              <span>{{ 'cart.listPrice' | translate }}</span>
+              <span>{{ 'cart.price' | translate }}</span>
+              <span>{{ 'cart.total' | translate }}</span>
             </div>
             
             <div *ngFor="let item of cart.items" class="cart-item">
@@ -185,22 +185,22 @@
             
             <div class="cart-totals">
               <div class="total-row">
-                <span>Total Price (Original)</span>
+                <span>{{ 'cart.totalOriginal' | translate }}</span>
                 <span>{{ cart.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
               </div>
               <div class="total-row">
-                <span>Discount</span>
+                <span>{{ 'cart.discount' | translate }}</span>
                 <span>-{{ cart.discount | currency:'EUR':'symbol':'1.2-2' }}</span>
               </div>
               <div class="total-row final-total">
-                <span>Total</span>
+                <span>{{ 'cart.finalTotal' | translate }}</span>
                 <span>{{ cart.finalTotal | currency:'EUR':'symbol':'1.2-2' }}</span>
               </div>
             </div>
             
             <div class="cart-actions">
-              <button class="empty-cart-btn" (click)="emptyCart()">Empty cart</button>
-              <button class="continue-btn" (click)="proceedToCustomerDetails()">Continue to Customer details</button>
+              <button class="empty-cart-btn" (click)="emptyCart()">{{ 'cart.emptyCart' | translate }}</button>
+              <button class="continue-btn" (click)="proceedToCustomerDetails()">{{ 'cart.continue' | translate }}</button>
             </div>
           </div>
         </div>
@@ -208,35 +208,43 @@
     </div>
   </div>
 
-  <!-- Customer Details View -->
-  <div *ngIf="currentStep === 'customer'" class="customer-view">
-    <div class="step-header">
-      <button class="back-btn" (click)="goBackToCart()">← Back</button>
-      <h2>Customer details</h2>
-    </div>
+  <!-- Customer Details Section (appears at bottom) -->
+  <div *ngIf="currentStep === 'customer' || currentStep === 'payment'" class="bottom-sections">
+        <div *ngIf="currentStep === 'customer' || currentStep === 'payment'" class="customer-section" [class.completed]="currentStep === 'payment'">
+      <div class="step-header">
+        <button class="back-btn" (click)="goBackToCart()">← {{ 'common.back' | translate }}</button>
+        <h2>{{ 'customer.title' | translate }}</h2>
+        <div *ngIf="currentStep === 'payment'" class="step-status">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="#4CAF50" stroke-width="2"/>
+            <path d="M8 12l2 2 4-4" stroke="#4CAF50" stroke-width="2" fill="none"/>
+          </svg>
+          <span>{{ 'customer.completed' | translate }}</span>
+        </div>
+      </div>
     
-    <form [formGroup]="customerForm" class="customer-form">
+          <form [formGroup]="customerForm" class="customer-form" [class.readonly]="currentStep === 'payment'">
       <div class="form-section">
         <h3>Personal Information</h3>
         <div class="form-row">
           <div class="form-field">
             <label for="firstName">First name*</label>
-            <input type="text" id="firstName" formControlName="firstName" required>
+            <input type="text" id="firstName" formControlName="firstName" required [readonly]="currentStep === 'payment'">
           </div>
           <div class="form-field">
             <label for="lastName">Last name*</label>
-            <input type="text" id="lastName" formControlName="lastName" required>
+            <input type="text" id="lastName" formControlName="lastName" required [readonly]="currentStep === 'payment'">
           </div>
         </div>
         
         <div class="form-row">
           <div class="form-field">
             <label for="email">Email*</label>
-            <input type="email" id="email" formControlName="email" required>
+            <input type="email" id="email" formControlName="email" required [readonly]="currentStep === 'payment'">
           </div>
           <div class="form-field">
             <label for="phone">Phone number (optional)</label>
-            <input type="tel" id="phone" formControlName="phone">
+            <input type="tel" id="phone" formControlName="phone" [readonly]="currentStep === 'payment'">
           </div>
         </div>
       </div>
@@ -245,39 +253,40 @@
         <h3>Address Information</h3>
         <div class="form-field">
           <label for="addressLine1">Address Line 1*</label>
-          <input type="text" id="addressLine1" formControlName="addressLine1" required>
+          <input type="text" id="addressLine1" formControlName="addressLine1" required [readonly]="currentStep === 'payment'">
         </div>
         
         <div class="form-field">
           <label for="addressLine2">Address Line 2</label>
-          <input type="text" id="addressLine2" formControlName="addressLine2">
+          <input type="text" id="addressLine2" formControlName="addressLine2" [readonly]="currentStep === 'payment'">
         </div>
         
         <div class="form-row">
           <div class="form-field">
             <label for="zipCode">Zip Code*</label>
-            <input type="text" id="zipCode" formControlName="zipCode" required>
+            <input type="text" id="zipCode" formControlName="zipCode" required [readonly]="currentStep === 'payment'">
           </div>
           <div class="form-field">
             <label for="city">City*</label>
-            <input type="text" id="city" formControlName="city" required>
+            <input type="text" id="city" formControlName="city" required [readonly]="currentStep === 'payment'">
           </div>
         </div>
         
         <div class="form-field">
           <label for="country">Country*</label>
-          <input type="text" id="country" formControlName="country" required>
+          <input type="text" id="country" formControlName="country" required [readonly]="currentStep === 'payment'">
         </div>
       </div>
       
       <div class="form-section">
         <h3>Shipping option</h3>
         <div class="shipping-options">
-          <label *ngFor="let option of shippingOptions" class="shipping-option">
+          <label *ngFor="let option of shippingOptions" class="shipping-option" [class.selected]="selectedShipping.id === option.id">
             <input type="radio" 
                    [value]="option.id" 
                    [(ngModel)]="selectedShipping" 
                    [ngModelOptions]="{standalone: true}"
+                   [disabled]="currentStep === 'payment'"
                    (change)="selectedShipping = option">
             <span class="radio-custom"></span>
             <div class="option-details">
@@ -288,7 +297,7 @@
         </div>
       </div>
       
-      <div class="form-actions">
+      <div *ngIf="currentStep === 'customer'" class="form-actions">
         <button type="button" class="cancel-btn" (click)="goBackToCart()">Cancel Order</button>
         <button type="button" 
                 class="continue-btn" 
@@ -296,10 +305,10 @@
                 (click)="proceedToPayment()">Continue to Payment</button>
       </div>
     </form>
-  </div>
+    </div>
 
-  <!-- Payment View -->
-  <div *ngIf="currentStep === 'payment'" class="payment-view">
+    <!-- Payment Section -->
+    <div *ngIf="currentStep === 'payment'" class="payment-section">
     <div class="step-header">
       <button class="back-btn" (click)="goBackToCustomer()">← Back</button>
       <h2>Payment option</h2>
@@ -322,9 +331,10 @@
       </div>
       
       <div class="form-actions">
-        <button type="button" class="cancel-btn" (click)="goBackToCustomer()">Cancel Order</button>
+        <button type="button" class="cancel-btn" (click)="goBackToCart()">Cancel Order</button>
         <button type="button" class="place-order-btn" (click)="placeOrder()">Place Order</button>
       </div>
+    </div>
     </div>
   </div>
 

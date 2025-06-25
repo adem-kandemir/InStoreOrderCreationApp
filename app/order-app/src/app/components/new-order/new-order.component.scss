@@ -505,12 +505,18 @@
   }
 }
 
+// Bottom Sections (Customer & Payment)
+.bottom-sections {
+  margin-top: 24px;
+}
+
 // Customer Form Styles
-.customer-view {
+.customer-section {
   background: white;
   padding: 24px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
   
   .step-header {
     display: flex;
@@ -538,6 +544,46 @@
       font-size: 24px;
       font-weight: 600;
       color: #333;
+      flex: 1;
+    }
+    
+    .step-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #4CAF50;
+      font-weight: 500;
+      font-size: 14px;
+    }
+  }
+  
+  &.completed {
+    opacity: 0.8;
+    background: #f9f9f9;
+    
+    .customer-form.readonly {
+      pointer-events: none;
+      
+      input[readonly] {
+        background: #f5f5f5;
+        color: #666;
+        cursor: default;
+      }
+      
+      .shipping-option {
+        pointer-events: none;
+        opacity: 0.7;
+        
+        &.selected {
+          opacity: 1;
+          background: #e8f5e8;
+          border-color: #4CAF50;
+        }
+        
+        input[disabled] {
+          cursor: default;
+        }
+      }
     }
   }
   
@@ -708,8 +754,8 @@
   }
 }
 
-// Payment View Styles
-.payment-view {
+// Payment Section Styles
+.payment-section {
   background: white;
   padding: 24px;
   border-radius: 8px;
