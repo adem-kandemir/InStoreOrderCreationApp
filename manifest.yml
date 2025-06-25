@@ -1,0 +1,13 @@
+---
+applications:
+- name: InStoreOrderCreationApp
+  buildpacks:
+    - staticfile_buildpack
+  path: app/order-app/dist/order-app
+  memory: 128M
+  disk_quota: 256M
+  instances: 1
+  routes:
+    - route: instoreorderapp.cfapps.eu10-004.hana.ondemand.com
+  env:
+    FORCE_HTTPS: true 

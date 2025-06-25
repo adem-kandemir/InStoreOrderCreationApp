@@ -46,7 +46,15 @@ export class AppComponent {
   }
 
   getUserInitials(user: UserInfo): string {
-    if (!user || !user.name) return 'U';
+    if (!user) return 'U';
+    
+    // Use initials from user object if available
+    if (user.initials) {
+      return user.initials;
+    }
+    
+    // Fallback to generating initials from name
+    if (!user.name) return 'U';
     const names = user.name.split(' ');
     if (names.length >= 2) {
       return (names[0][0] + names[1][0]).toUpperCase();

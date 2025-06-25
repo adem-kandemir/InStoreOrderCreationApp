@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In-Store Order Creation App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: #28a745;
+            background: #d4edda;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+        }
+        .info {
+            color: #0066cc;
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #bbdefb;
+            margin-bottom: 20px;
+        }
+        h1 { color: #333; }
+        h2 { color: #0066cc; }
+        .status-item {
+            margin: 10px 0;
+            padding: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            border-radius: 0 4px 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 In-Store Order Creation App</h1>
+        
+        <div class="success">
+            <strong>✅ Authentication Successful!</strong><br>
+            You have successfully logged in and your roles have been verified.
+        </div>
+
+        <div class="info">
+            <strong>📋 Deployment Status</strong><br>
+            The authentication layer is working correctly. The Angular application content is being deployed.
+        </div>
+
+        <h2>✅ Working Components</h2>
+        <div class="status-item">🔐 <strong>XSUAA Authentication</strong> - Working</div>
+        <div class="status-item">🛡️ <strong>Role-Based Access Control</strong> - Working</div>
+        <div class="status-item">🌐 <strong>App Router</strong> - Working</div>
+        <div class="status-item">☁️ <strong>SAP BTP Cloud Foundry</strong> - Working</div>
+
+        <h2>🚀 Next Steps</h2>
+        <p>The full Angular application with the order creation interface will be available shortly. This includes:</p>
+        <ul>
+            <li>📦 Product search and selection</li>
+            <li>🛒 Shopping cart management</li>
+            <li>👤 Customer details form</li>
+            <li>💳 Payment processing</li>
+            <li>📋 Order history</li>
+            <li>⚙️ Settings management</li>
+            <li>🌍 Multi-language support (German/English)</li>
+        </ul>
+
+        <p><strong>Your assigned roles are working correctly!</strong> You can access this application because you have the proper permissions.</p>
+    </div>
+
+    <script>
+        // Add current timestamp
+        document.addEventListener('DOMContentLoaded', function() {
+            const timestamp = new Date().toLocaleString();
+            console.log('App loaded at:', timestamp);
+        });
+    </script>
+</body>
+</html> 

@@ -1,48 +1,16 @@
-_schema-version: 3.3.0
+_schema-version: "3.1"
 ID: InStoreOrderCreationApp
+description: In-Store Order Creation App
 version: 1.0.0
-description: "A simple CAP project."
-parameters:
-  enable-parallel-deployments: true
-  deploy_mode: html5-repo
-build-parameters:
-  before-all:
-    - builder: custom
-      commands:
-        - npm ci
-        - npx cds build --production
 modules:
-  - name: InStoreOrderCreationApp-srv
-    type: nodejs
-    path: gen/srv
-    parameters:
-      instances: 1
-      buildpack: nodejs_buildpack
-    build-parameters:
-      builder: npm-ci
-    provides:
-      - name: srv-api # required by consumers of CAP services (e.g. approuter)
-        properties:
-          srv-url: ${default-url}
-    requires:
-      - name: InStoreOrderCreationApp-auth
-      - name: InStoreOrderCreationApp-connectivity
-      - name: InStoreOrderCreationApp-destination
-
   - name: InStoreOrderCreationApp
     type: approuter.nodejs
     path: app/router
     parameters:
       keep-existing-routes: true
-      disk-quota: 256M
-      memory: 256M
+      disk-quota: 512M
+      memory: 512M
     requires:
-      - name: srv-api
-        group: destinations
-        properties:
-          name: srv-api # must be used in xs-app.json as well
-          url: ~{srv-url}
-          forwardAuthToken: true
       - name: InStoreOrderCreationApp-auth
       - name: InStoreOrderCreationApp-destination
       - name: InStoreOrderCreationApp-html5-runtime
@@ -59,13 +27,12 @@ modules:
       build-result: dist/order-app
       builder: custom
       commands:
-        - npm ci
-        - npm run build:prod
-      supported-platforms: []
+        - npm install --legacy-peer-deps --no-audit --no-fund
+        - npm run build:prod -- --output-hashing=none --extract-licenses=false --source-map=false
 
   - name: InStoreOrderCreationApp-app-deployer
     type: com.sap.application.content
-    path: gen
+    path: .
     requires:
       - name: InStoreOrderCreationApp-html5-repo-host
         parameters:
@@ -78,7 +45,6 @@ modules:
             - dist/order-app/
           target-path: app/
 
-
 resources:
   - name: InStoreOrderCreationApp-auth
     type: org.cloudfoundry.managed-service
@@ -87,19 +53,13 @@ resources:
       service-plan: application
       path: ./xs-security.json
       config:
-        xsappname: InStoreOrderCreationApp-${org}-${space}
+        xsappname: InStoreOrderCreationApp-${space}
         tenant-mode: dedicated
-  - name: InStoreOrderCreationApp-connectivity
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: connectivity
-      service-plan: lite
   - name: InStoreOrderCreationApp-destination
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
       service-plan: lite
-
   - name: InStoreOrderCreationApp-html5-repo-host
     type: org.cloudfoundry.managed-service
     parameters:
