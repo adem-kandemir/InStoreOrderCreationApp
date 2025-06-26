@@ -10,40 +10,18 @@ modules:
       keep-existing-routes: true
       disk-quota: 512M
       memory: 512M
+      routes:
+        - route: instoreordercreationapp.cfapps.eu10-004.hana.ondemand.com
     requires:
       - name: InStoreOrderCreationApp-auth
       - name: InStoreOrderCreationApp-destination
-      - name: InStoreOrderCreationApp-html5-runtime
     provides:
       - name: app-api
         properties:
           app-protocol: ${protocol}
           app-uri: ${default-uri}
 
-  - name: InStoreOrderCreationApp-ui
-    type: html5
-    path: app/order-app
-    build-parameters:
-      build-result: dist/order-app
-      builder: custom
-      commands:
-        - npm install --legacy-peer-deps --no-audit --no-fund
-        - npm run build:prod -- --output-hashing=none --extract-licenses=false --source-map=false
 
-  - name: InStoreOrderCreationApp-app-deployer
-    type: com.sap.application.content
-    path: .
-    requires:
-      - name: InStoreOrderCreationApp-html5-repo-host
-        parameters:
-          content-target: true
-    build-parameters:
-      build-result: app/
-      requires:
-        - name: InStoreOrderCreationApp-ui
-          artifacts:
-            - dist/order-app/
-          target-path: app/
 
 resources:
   - name: InStoreOrderCreationApp-auth
@@ -60,13 +38,3 @@ resources:
     parameters:
       service: destination
       service-plan: lite
-  - name: InStoreOrderCreationApp-html5-repo-host
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: html5-apps-repo
-      service-plan: app-host
-  - name: InStoreOrderCreationApp-html5-runtime
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: html5-apps-repo
-      service-plan: app-runtime
