@@ -1,146 +1,172 @@
-# InStore Order Creation App - API Server
+# Order App API Server
 
-This API server provides a backend for the InStore Order Creation App, connecting to an on-premise SAP S/4HANA system through SAP BTP's Connectivity and Destination services.
+Node.js/Express API server that provides product data from SAP S/4HANA to the Angular frontend.
 
-## Architecture
+## Overview
 
-The API server acts as a proxy between the Angular frontend and the on-premise S/4HANA system:
-
-```
-Angular App → API Server → Destination Service → Connectivity Service → Cloud Connector → S/4HANA
-```
+This API server acts as a middleware between the Angular frontend and SAP S/4HANA system. It handles:
+- Authentication with SAP BTP services
+- Product data retrieval from S/4HANA
+- Data transformation and caching
+- Fallback to mock data when S/4HANA is unavailable
 
 ## Features
 
-- Product search and retrieval from S/4HANA OData services
-- Automatic fallback to mock data when S/4HANA is unavailable
-- Support for both local development and Cloud Foundry deployment
-- Secure connection through SAP BTP services
-
-## Local Development
-
-### Prerequisites
-
-1. Node.js 18+ installed
-2. Access to SAP BTP with configured:
-   - Destination Service instance
-   - Connectivity Service instance
-   - Destination "RS4" configured for on-premise S/4HANA
-3. Cloud Foundry CLI installed and logged in
-
-### Setup
-
-1. Install dependencies:
-   ```bash
-   cd app/order-app/src/api
-   npm install
-   ```
-
-2. Copy the environment template:
-   ```bash
-   cp default-env.json.template default-env.json
-   ```
-
-3. Update `default-env.json` with your service credentials (already configured)
-
-### Running Locally
-
-1. Start the SSH tunnel to the connectivity proxy (in a separate terminal):
-   ```bash
-   cf ssh InStoreOrderCreationApp -L localhost:8081:connectivityproxy.internal.cf.eu10-004.hana.ondemand.com:20003
-   ```
-
-2. Start the API server:
-   ```bash
-   npm start
-   ```
-
-The API server will run on http://localhost:3000
-
-### API Endpoints
-
-- `GET /api/health` - Health check endpoint
-- `GET /api/products` - List products (supports search query parameter)
-- `GET /api/products/:id` - Get specific product by ID
-- `GET /api/products/:id/image` - Get product image (redirects to static assets)
-
-## Cloud Foundry Deployment
-
-When deployed to Cloud Foundry, the API server automatically:
-1. Uses bound service instances for authentication
-2. Connects through the connectivity proxy without SSH tunnels
-3. Handles authentication tokens automatically
-
-### Environment Detection
-
-The server detects the environment using:
-```javascript
-const isCloudFoundry = process.env.VCAP_APPLICATION ? true : false;
-```
-
-### Service Bindings
-
-Required services in Cloud Foundry:
-- `destination-service` - For accessing destination configurations
-- `connectivity-service` - For connecting to on-premise systems
+- **Environment Detection**: Automatically detects local vs Cloud Foundry environment
+- **Direct S/4HANA Connection**: For local development
+- **Destination Service Integration**: For cloud deployment
+- **Product Search**: Full-text search across product descriptions, IDs, and EANs
+- **Error Handling**: Graceful fallback to mock data
+- **CORS Support**: Configured for local development
 
 ## Configuration
 
-### Destination Configuration (RS4)
+### Local Development
 
-The destination should be configured with:
-- **Name**: RS4
-- **Type**: HTTP
-- **URL**: http://rs4.rb-omnishore.de:8000
-- **ProxyType**: OnPremise
-- **Authentication**: BasicAuthentication
-- **CloudConnectorLocationId**: RS4CLNT100_LOCID
+Create an `env.local` file:
 
-### Product Data Transformation
+```env
+# S/4HANA Direct Connection Credentials
+S4HANA_USERNAME=your_username
+S4HANA_PASSWORD=your_password
+```
 
-S/4HANA product data is transformed to match the Angular app's interface:
+The server will automatically:
+- Load credentials from `env.local`
+- Connect directly to S/4HANA at `http://MERCHANDISE.REALCORE.DE:8000`
+- Use Basic Authentication
 
-```javascript
+### Cloud Deployment
+
+In Cloud Foundry, the server:
+- Uses VCAP_SERVICES for service bindings
+- Retrieves destination configuration from SAP BTP
+- Handles OAuth2 authentication automatically
+
+## API Endpoints
+
+### Health Check
+```
+GET /api/health
+```
+Returns server status and timestamp.
+
+### List Products
+```
+GET /api/products?search=<query>
+```
+- Returns up to 100 products
+- Optional search parameter filters by description, ID, or EAN
+- Includes product descriptions from S/4HANA
+
+Example response:
+```json
 {
-  id: s4Product.Product,
-  ean: s4Product.ProductStandardID || '',
-  description: s4Product.ProductDescription || s4Product.Product,
-  listPrice: parseFloat(s4Product.NetPriceAmount || '0'),
-  unit: s4Product.BaseUnit || 'EA',
-  image: `/api/images/products/${s4Product.Product}.jpg`,
-  inStoreStock: Math.floor(Math.random() * 100), // Mock data
-  onlineStock: Math.floor(Math.random() * 100),  // Mock data
-  isAvailable: true
+  "products": [
+    {
+      "id": "29",
+      "ean": "9999999999987",
+      "description": "RBOmnishore Pen",
+      "listPrice": 19.99,
+      "unit": "ST",
+      "image": "/api/images/products/29.jpg",
+      "inStoreStock": 45,
+      "onlineStock": 120,
+      "isAvailable": true
+    }
+  ],
+  "totalCount": 15
 }
+```
+
+### Get Product by ID
+```
+GET /api/products/:id
+```
+Returns detailed information for a specific product.
+
+## Running the Server
+
+### Development
+```bash
+npm install
+npm start
+```
+
+The server runs on http://localhost:3000
+
+### Testing Direct Connection
+```bash
+node test-direct.js
+```
+
+This tests the direct S/4HANA connection without starting the full server.
+
+## Architecture
+
+```
+┌─────────────────┐
+│  Angular App    │
+│  (Port 4200)    │
+└────────┬────────┘
+         │ HTTP
+         ▼
+┌─────────────────┐
+│   API Server    │
+│  (Port 3000)    │
+└────────┬────────┘
+         │
+         ├─── Local Dev ──────► Direct S/4HANA Connection
+         │
+         └─── Cloud ──────────► Destination Service ──► S/4HANA
 ```
 
 ## Error Handling
 
-The API includes comprehensive error handling:
-1. Falls back to mock data when S/4HANA is unavailable
-2. Logs detailed error information for debugging
-3. Returns appropriate HTTP status codes
+The server implements multiple fallback strategies:
+
+1. **Primary**: Fetch from S/4HANA
+2. **Fallback**: Return mock data if S/4HANA is unavailable
+3. **Logging**: All errors are logged for debugging
 
 ## Mock Data
 
-When the S/4HANA connection fails, the API returns mock product data to ensure the frontend can still be tested. Mock products include sample highlighters and a test product from S/4HANA.
+When S/4HANA is unavailable, the server returns mock products:
+- Stabilo Boss Highlighters
+- Test products with realistic data
+- Consistent structure for frontend development
+
+## Security
+
+- **Local**: Basic Authentication with S/4HANA credentials
+- **Cloud**: OAuth2 via SAP BTP services
+- **CORS**: Configured for Angular development server
+- **No credentials in code**: All sensitive data in environment variables
+
+## Dependencies
+
+- `express`: Web framework
+- `cors`: CORS middleware
+- `axios`: HTTP client
+- `dotenv`: Environment variable management
+- `@sap/xsenv`: SAP service bindings (Cloud Foundry only)
 
 ## Troubleshooting
 
-### Local Development Issues
+### 401 Unauthorized
+- Check S/4HANA credentials in `env.local`
+- Verify username/password are correct
 
-1. **Connection Refused**: Ensure the SSH tunnel is running
-2. **403 Forbidden**: Check destination service credentials and permissions
-3. **IPv6 Issues**: The server binds to 127.0.0.1 to avoid IPv6 problems
+### 403 Forbidden
+- Ensure destination service binding is correct
+- Check SAP BTP service credentials
 
-### Cloud Foundry Issues
+### Empty Search Results
+- Products are fetched with descriptions
+- Search is case-insensitive
+- Searches in description, ID, and EAN fields
 
-1. **Service Binding**: Ensure services are properly bound to the application
-2. **Destination Access**: Verify the destination is accessible from the subaccount
-3. **Cloud Connector**: Ensure the Cloud Connector is running and configured
-
-## Security Notes
-
-- OAuth2 tokens are automatically refreshed
-- Credentials are never exposed in logs
-- All connections to S/4HANA go through secure SAP BTP services 
+### Connection Timeout
+- Verify S/4HANA system is accessible
+- Check network connectivity
+- For on-premise systems, ensure Cloud Connector is running 

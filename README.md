@@ -24,78 +24,112 @@ File or Folder | Purpose
 
 Learn more at https://cap.cloud.sap/docs/get-started/.
 
-# InStore Order Creation App
+# InStoreOrderCreationApp
 
-This is a multi-module SAP BTP application for in-store order creation.
+An Angular-based in-store order creation application for SAP Business Technology Platform (BTP) that connects to SAP S/4HANA for product data.
 
-## Project Structure
+## Overview
 
-- `app/` - Contains the application modules
-  - `order-app/` - Angular frontend application
-  - `router/` - Application router for SAP BTP
-- `mta.yaml` - Multi-Target Application descriptor
-- `xs-security.json` - Security configuration
+This application enables store employees to create orders by searching and selecting products from the S/4HANA system. It features:
 
-## Development
+- **Product Search**: Real-time search through S/4HANA product catalog
+- **Responsive Design**: Works on tablets and mobile devices
+- **Multi-language Support**: Configurable language settings
+- **SAP BTP Integration**: Deployed as a Cloud Foundry application
+- **Direct S/4HANA Connection**: For local development
+- **Destination Service**: For cloud deployment
 
-### Prerequisites
+## Architecture
 
-- Node.js 18+
-- Cloud Foundry CLI
-- SAP BTP account with necessary services
+```
+├── app/
+│   ├── order-app/          # Angular frontend application
+│   │   ├── src/
+│   │   │   ├── api/        # Node.js API server
+│   │   │   ├── app/        # Angular components
+│   │   │   └── assets/     # Static assets
+│   │   └── dist/           # Build output
+│   └── router/             # Application router for SAP BTP
+├── mta.yaml                # Multi-Target Application descriptor
+└── xs-security.json        # Security configuration
+```
 
-### Local Development
+## Prerequisites
 
-1. Install dependencies:
-   ```bash
-   cd app/order-app
-   npm install
-   ```
+- Node.js (v18 or higher)
+- Angular CLI (`npm install -g @angular/cli`)
+- Cloud Foundry CLI (for deployment)
+- SAP BTP account with:
+  - Cloud Foundry environment
+  - Destination service
+  - Authorization & Trust Management service
 
-2. Start the development server:
-   ```bash
-   npm start
-   ```
+## Local Development
 
-The application will be available at http://localhost:4200
+### Quick Start
 
-## On-Premise S/4HANA Integration
+Use the provided start scripts to run both servers:
 
-This application connects to an on-premise SAP S/4HANA system for product data. The integration uses SAP BTP's Connectivity and Destination services to securely access on-premise resources.
+```bash
+# Windows
+./start-local.ps1
 
-### Key Features
+# Linux/Mac
+./start-local.sh
+```
 
-- **Product Search**: Search and display products from S/4HANA
-- **Product Details**: View detailed product information including EAN, pricing, and stock levels
-- **Fallback Mode**: Automatic fallback to mock data when S/4HANA is unavailable
-- **Secure Connection**: All connections go through SAP BTP security layers
+This will start both the API server (port 3000) and Angular app (port 4200) in separate windows.
 
-### Quick Start for On-Premise Connection
+### Manual Setup
 
-1. **Start SSH Tunnel** (for local development):
-   ```bash
-   cf ssh InStoreOrderCreationApp -L localhost:8081:connectivityproxy.internal.cf.eu10-004.hana.ondemand.com:20003
-   ```
+1. Install Dependencies
 
-2. **Start API Server**:
-   ```bash
-   cd app/order-app/src/api
-   npm start
-   ```
+```bash
+# Install root dependencies
+npm install
 
-3. **Start Angular App**:
-   ```bash
-   cd app/order-app
-   npm start
-   ```
+# Install Angular app dependencies
+cd app/order-app
+npm install
 
-For detailed setup instructions, see [ONPREMISE_CONNECTION.md](ONPREMISE_CONNECTION.md)
+# Install API server dependencies
+cd src/api
+npm install
+```
 
-## Deployment
+2. Configure S/4HANA Connection
 
-### Build and Deploy
+For local development, create `app/order-app/src/api/env.local` file:
 
-Use the provided scripts to build and deploy the application:
+```env
+# S/4HANA Direct Connection Credentials
+S4HANA_USERNAME=your_username
+S4HANA_PASSWORD=your_password
+```
+
+3. Start the Application
+
+Start both the API server and Angular development server:
+
+```bash
+# Terminal 1: Start API server
+cd app/order-app/src/api
+npm start
+
+# Terminal 2: Start Angular app
+cd app/order-app
+npm start
+```
+
+The application will be available at:
+- Frontend: http://localhost:4200
+- API: http://localhost:3000
+
+## Deployment to SAP BTP
+
+### 1. Build the Application
+
+Use the provided build script:
 
 ```bash
 # Windows
@@ -105,55 +139,76 @@ Use the provided scripts to build and deploy the application:
 ./build-and-deploy.sh
 ```
 
-### Manual Deployment
+This script will:
+- Build the Angular application
+- Copy files to the router directory
+- Create an MTA archive
 
-1. Build the MTA:
-   ```bash
-   mbt build
-   ```
+### 2. Deploy to Cloud Foundry
 
-2. Deploy to Cloud Foundry:
-   ```bash
-   cf deploy mta_archives/InStoreOrderCreationApp_1.0.0.mtar
-   ```
-
-## Architecture
-
-The application follows a microservices architecture:
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│   Angular App   │────▶│   App Router    │────▶│   API Server     │
-│   (Frontend)    │     │  (Entry Point)  │     │   (Backend)      │
-└─────────────────┘     └─────────────────┘     └──────────────────┘
-                                                           │
-                                                           ▼
-                                                 ┌──────────────────┐
-                                                 │  SAP BTP Services │
-                                                 │  (Dest, Conn)    │
-                                                 └──────────────────┘
-                                                           │
-                                                           ▼
-                                                 ┌──────────────────┐
-                                                 │   S/4HANA        │
-                                                 │  (On-Premise)    │
-                                                 └──────────────────┘
+```bash
+# Deploy the MTA archive
+cf deploy mta_archives/InStoreOrderCreationApp_1.0.0.mtar
 ```
 
-## Services
+### 3. Configure Destination
 
-The application requires the following SAP BTP services:
+In SAP BTP cockpit, create a destination named "RS4" with:
+- URL: Your S/4HANA system URL
+- Authentication: BasicAuthentication
+- ProxyType: OnPremise (if using Cloud Connector)
 
-- **Destination Service**: For managing connections to backend systems
-- **Connectivity Service**: For secure tunnel to on-premise systems
-- **XSUAA**: For authentication and authorization
+## Features
 
-## Documentation
+### Product Search
+- Search products by name, ID, or EAN
+- Real-time search with debouncing
+- Displays product details including price and availability
 
-- [Deployment Guide](DEPLOYMENT.md) - Detailed deployment instructions
-- [On-Premise Connection](ONPREMISE_CONNECTION.md) - S/4HANA integration setup
-- [API Documentation](app/order-app/src/api/README.md) - API server details
+### Shopping Cart
+- Add/remove products
+- Adjust quantities
+- Calculate totals
+
+### Multi-language Support
+- German and English translations
+- Configurable through settings
+
+## API Endpoints
+
+- `GET /api/health` - Health check
+- `GET /api/products` - List products (with optional search)
+- `GET /api/products/:id` - Get specific product
+
+## Security
+
+The application uses:
+- OAuth 2.0 for API authentication
+- SAP BTP Authorization & Trust Management
+- Secure destination service for S/4HANA connection
+
+## Troubleshooting
+
+### Blank Page After Deployment
+- Check that Angular build files are in `app/router/resources/browser/`
+- Verify the xs-app.json routing configuration
+
+### 403 Forbidden Errors
+- Ensure the app is bound to the correct destination service
+- Check destination service credentials in SAP BTP
+
+### Connection Issues
+- For on-premise systems, verify Cloud Connector is running
+- Check destination configuration in SAP BTP cockpit
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is licensed under the SAP Sample Code License.
+This project is licensed under the MIT License.

@@ -1,37 +1,23 @@
-# In-Store Order Creation App
+# Order App - Angular Frontend
 
-A comprehensive Angular application for creating and managing in-store orders, built with Angular 17 and TypeScript.
+Modern Angular application for in-store order creation with SAP S/4HANA integration.
 
 ## Features
 
-### 🛍️ Order Creation Flow
-- **Product Search**: Search products by description, ID, or EAN number
-- **Product Details**: View detailed product information including stock levels
-- **Shopping Cart**: Add products to cart with quantity management
-- **Customer Information**: Capture customer details and shipping address
-- **Payment Options**: Select payment method (Prepayment supported)
-- **Order Confirmation**: Success/error handling with confirmation numbers
+- **Product Search**: Real-time search with debouncing
+- **Shopping Cart**: Add/remove products, adjust quantities
+- **Multi-language**: German and English support
+- **Responsive Design**: Optimized for tablets and mobile devices
+- **Settings Management**: Configurable store and language preferences
+- **SAP Integration**: Direct connection to S/4HANA product catalog
 
-### 📋 Order Management
-- **Order History**: View all previous orders
-- **Order Status**: Track order status (Pending, Confirmed, Processing, Shipped, Delivered, Cancelled)
-- **Order Details**: View complete order information including items and pricing
+## Technology Stack
 
-### 🎨 User Interface
-- **Modern Design**: Clean, responsive interface matching the provided mockups
-- **Intuitive Navigation**: Easy switching between New Order and Orders views
-- **Real-time Updates**: Cart updates and search results in real-time
-- **Mobile Responsive**: Works on desktop and mobile devices
-
-## Technical Stack
-
-- **Framework**: Angular 17
-- **Language**: TypeScript
-- **Styling**: SCSS with custom design system
-- **State Management**: RxJS Observables with BehaviorSubject
-- **Forms**: Reactive Forms with validation
-- **Routing**: Angular Router with lazy loading
-- **Build Tool**: Angular CLI
+- Angular 17 with standalone components
+- TypeScript
+- RxJS for reactive programming
+- Angular Material for UI components
+- Server-Side Rendering (SSR) support
 
 ## Project Structure
 
@@ -39,163 +25,185 @@ A comprehensive Angular application for creating and managing in-store orders, b
 src/
 ├── app/
 │   ├── components/
-│   │   ├── new-order/          # Main order creation component
-│   │   └── orders/             # Order history component
-│   ├── models/
-│   │   ├── product.interface.ts # Product data models
-│   │   └── cart.interface.ts   # Cart and order models
+│   │   ├── new-order/      # Main order creation component
+│   │   ├── orders/         # Order history view
+│   │   ├── settings/       # Application settings
+│   │   └── unauthorized/   # Auth error page
 │   ├── services/
-│   │   ├── product.service.ts  # Product data service
-│   │   └── cart.service.ts     # Cart management service
-│   ├── app.component.*         # Root component with navigation
-│   └── app.routes.ts          # Application routing
-├── assets/                    # Static assets
-└── styles.scss               # Global styles
+│   │   ├── auth.service.ts         # Authentication
+│   │   ├── cart.service.ts         # Shopping cart management
+│   │   ├── product.service.ts      # Product data access
+│   │   ├── settings.service.ts     # Settings persistence
+│   │   └── localization.service.ts # Translation management
+│   ├── guards/
+│   │   └── auth.guard.ts   # Route protection
+│   └── models/
+│       ├── product.interface.ts
+│       └── cart.interface.ts
+├── api/                    # Node.js API server
+└── assets/
+    └── i18n/              # Translation files
 ```
 
-## Getting Started
+## Development
 
 ### Prerequisites
-- Node.js 18.x or higher
-- npm 9.x or higher
 
-### Installation
+- Node.js 18+
+- Angular CLI: `npm install -g @angular/cli`
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd InStoreOrderCreationApp/app/order-app
-   ```
+### Setup
 
-2. **Install dependencies**
+1. Install dependencies:
    ```bash
    npm install
    ```
 
-3. **Start development server**
+2. Configure proxy for API (already configured in `proxy.conf.json`):
+   ```json
+   {
+     "/api": {
+       "target": "http://localhost:3000",
+       "secure": false
+     }
+   }
+   ```
+
+3. Start the development server:
    ```bash
    npm start
    ```
 
-4. **Open your browser**
-   Navigate to `http://localhost:4200`
+The app will be available at http://localhost:4200
 
-### Available Scripts
+### Development Commands
 
-- `npm start` - Start development server
+- `npm start` - Start dev server with local configuration
 - `npm run build` - Build for production
 - `npm test` - Run unit tests
-- `npm run watch` - Build in watch mode
+- `npm run watch` - Build and watch for changes
 
-## Application Flow
+## Components
 
-### 1. Product Search
-- Users can search for products using the search bar
-- Results are displayed in a table format
-- Click on a product to view details
+### New Order Component
+Main component for creating orders:
+- Product search with debouncing (300ms)
+- Real-time search results from S/4HANA
+- Add to cart functionality
+- Displays product details (price, EAN, availability)
 
-### 2. Product Selection
-- View product details including price and stock levels
-- Add products to cart with "zum Warenkorb hinzufügen" button
-- Stock information shows both in-store and online availability
+### Shopping Cart
+- Persistent cart state
+- Quantity adjustment
+- Total calculation
+- Remove items
 
-### 3. Cart Management
-- View all items in the cart
-- Adjust quantities using +/- buttons
-- Remove items with the delete button
-- View pricing breakdown with discounts
+### Settings
+- Store number configuration
+- Language selection (DE/EN)
+- Settings persistence in localStorage
 
-### 4. Customer Details
-- Fill in personal information (name, email, phone)
-- Enter shipping address
-- Select shipping option (Standard or Express)
+## Services
 
-### 5. Payment & Confirmation
-- Select payment method
-- Review order summary
-- Place order and receive confirmation
+### ProductService
+- Fetches products from API server
+- Search functionality
+- Caching and error handling
 
-### 6. Order History
-- View all previous orders
-- See order status and details
-- Access order actions (view details, download invoice, cancel)
+### CartService
+- Cart state management
+- Add/remove/update items
+- Total calculations
+- Cart persistence
 
-## Features Implementation
+### LocalizationService
+- Translation management
+- Language switching
+- Locale persistence
 
-### State Management
-- **Cart Service**: Manages cart state using BehaviorSubject
-- **Product Service**: Handles product search and data retrieval
-- **Reactive Updates**: Real-time cart updates across components
+## Internationalization
 
-### Form Validation
-- **Customer Form**: Required field validation for contact and address
-- **Email Validation**: Proper email format checking
-- **Conditional Validation**: Smart form validation based on user input
+Translations are stored in `src/assets/i18n/`:
+- `de.json` - German translations
+- `en.json` - English translations
 
-### Responsive Design
-- **Mobile-First**: Designed to work on all screen sizes
-- **Grid Layouts**: CSS Grid for flexible layouts
-- **Touch-Friendly**: Large buttons and touch targets
+Add new translations by updating these files.
 
-### Error Handling
-- **Order Processing**: Simulated success/failure scenarios
-- **Form Validation**: Clear error messages and visual feedback
-- **Loading States**: Loading indicators for better UX
+## Styling
 
-## Mock Data
+- Global styles in `src/styles.scss`
+- Component-specific styles in component files
+- CSS custom properties for theming
+- Responsive design with CSS Grid and Flexbox
 
-The application includes mock data for demonstration:
-- **Products**: Sample RBO NRG Cup2Go products with variations
-- **Stock Levels**: Simulated in-store and online stock
-- **Order History**: Sample completed orders
+## Building for Production
 
-## Customization
-
-### Adding New Products
-Update the `mockProducts` array in `product.service.ts`:
-
-```typescript
-{
-  id: 'NEW_ID',
-  ean: 'NEW_EAN',
-  description: 'Product Name',
-  listPrice: 29.99,
-  unit: 'ST',
-  inStoreStock: 15,
-  onlineStock: 50,
-  isAvailable: true
-}
+```bash
+npm run build
 ```
 
-### Styling Customization
-- Global styles: `src/styles.scss`
-- Component styles: Individual `.scss` files
-- Color scheme: Update CSS custom properties
+This creates optimized bundles in `dist/order-app/browser/`
 
-### Adding New Features
-1. Create new components in `src/app/components/`
-2. Add routes in `app.routes.ts`
-3. Update navigation in `app.component.html`
+### Build Output
+- Optimized JavaScript bundles
+- Minified CSS
+- Compressed assets
+- Service worker for offline support
 
-## Browser Support
+## Configuration
 
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
+### Environment Files
+- `environment.ts` - Default configuration
+- `environment.development.ts` - Development settings
+- `environment.local.ts` - Local development with API proxy
+
+### Proxy Configuration
+The `proxy.conf.json` routes `/api` requests to the local API server during development.
+
+## Best Practices
+
+1. **Lazy Loading**: Components are lazy-loaded for better performance
+2. **Standalone Components**: Using Angular's standalone component API
+3. **Reactive Forms**: For complex form handling
+4. **OnPush Strategy**: For better performance
+5. **Type Safety**: Strict TypeScript configuration
+
+## Troubleshooting
+
+### API Connection Issues
+- Ensure API server is running on port 3000
+- Check proxy configuration
+- Verify CORS settings
+
+### Translation Not Working
+- Check language files in `assets/i18n/`
+- Verify LocalizationService is initialized
+- Check browser console for errors
+
+### Build Errors
+- Clear node_modules and reinstall
+- Check TypeScript version compatibility
+- Ensure all imports are correct
+
+## Testing
+
+### Unit Tests
+```bash
+npm test
+```
+
+### E2E Tests
+```bash
+npm run e2e
+```
+
+## Deployment
+
+The built application is served through the SAP BTP app router. Build files should be copied to `app/router/resources/browser/`.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.
-
-## Support
-
-For questions or issues, please contact the development team or create an issue in the repository.
+1. Follow Angular style guide
+2. Write unit tests for new features
+3. Update translations for new UI elements
+4. Test on multiple devices/browsers

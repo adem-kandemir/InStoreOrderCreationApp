@@ -268,6 +268,11 @@ app.get('/api/products', async (req, res) => {
       );
     }
     
+    // Limit to maximum 5 results for search
+    if (searchQuery && transformedProducts.length > 5) {
+      transformedProducts = transformedProducts.slice(0, 5);
+    }
+    
     res.json({
       products: transformedProducts,
       totalCount: transformedProducts.length
@@ -327,13 +332,18 @@ app.get('/api/products', async (req, res) => {
       }
     ];
     
-    const filtered = searchQuery 
+    let filtered = searchQuery 
       ? mockProducts.filter(p => 
           p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.ean.includes(searchQuery) ||
           p.id.includes(searchQuery)
         )
       : mockProducts;
+    
+    // Limit to maximum 5 results for search
+    if (searchQuery && filtered.length > 5) {
+      filtered = filtered.slice(0, 5);
+    }
     
     res.json({
       products: filtered,

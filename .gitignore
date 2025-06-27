@@ -117,6 +117,7 @@ Thumbs.db
 # API Server
 app/order-app/src/api/default-env.json
 app/order-app/src/api/.env
+app/order-app/src/api/env.local
 app/order-app/src/api/node_modules/
 
 # Test on-premise folder (local testing only)
