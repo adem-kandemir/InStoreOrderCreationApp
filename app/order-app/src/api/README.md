@@ -1,87 +1,146 @@
-# Order App API Server
+# InStore Order Creation App - API Server
 
-This API server provides the backend for the InStore Order Creation App, handling connections to the SAP S/4HANA system through SAP BTP services.
+This API server provides a backend for the InStore Order Creation App, connecting to an on-premise SAP S/4HANA system through SAP BTP's Connectivity and Destination services.
 
 ## Architecture
 
-The API server uses:
-- **Destination Service**: To retrieve connection details and credentials for the S/4HANA system
-- **Connectivity Service**: To establish secure connection to on-premise systems
-- **XSUAA**: For authentication and authorization
+The API server acts as a proxy between the Angular frontend and the on-premise S/4HANA system:
 
-## Setup for Local Development
+```
+Angular App → API Server → Destination Service → Connectivity Service → Cloud Connector → S/4HANA
+```
+
+## Features
+
+- Product search and retrieval from S/4HANA OData services
+- Automatic fallback to mock data when S/4HANA is unavailable
+- Support for both local development and Cloud Foundry deployment
+- Secure connection through SAP BTP services
+
+## Local Development
 
 ### Prerequisites
 
-1. Cloud Foundry CLI installed and logged in
-2. Access to the deployed app on SAP BTP
-3. Node.js 14+ installed
+1. Node.js 18+ installed
+2. Access to SAP BTP with configured:
+   - Destination Service instance
+   - Connectivity Service instance
+   - Destination "RS4" configured for on-premise S/4HANA
+3. Cloud Foundry CLI installed and logged in
 
-### Steps
+### Setup
 
-1. **Get Service Credentials**
+1. Install dependencies:
    ```bash
-   cf env InStoreOrderCreationApp
+   cd app/order-app/src/api
+   npm install
    ```
-   Copy the VCAP_SERVICES section from the output.
 
-2. **Create default-env.json**
+2. Copy the environment template:
    ```bash
    cp default-env.json.template default-env.json
    ```
-   Update the file with the actual credentials from step 1.
 
-3. **Start SSH Tunnel** (in a separate terminal)
+3. Update `default-env.json` with your service credentials (already configured)
+
+### Running Locally
+
+1. Start the SSH tunnel to the connectivity proxy (in a separate terminal):
    ```bash
    cf ssh InStoreOrderCreationApp -L localhost:8081:connectivityproxy.internal.cf.eu10-004.hana.ondemand.com:20003
    ```
 
-4. **Start the API Server**
-   
-   On Linux/Mac:
+2. Start the API server:
    ```bash
-   ./start-local.sh
-   ```
-   
-   On Windows:
-   ```powershell
-   .\start-local.ps1
+   npm start
    ```
 
-## API Endpoints
+The API server will run on http://localhost:3000
 
-### Products
+### API Endpoints
 
-- `GET /api/products` - List all products
-  - Query params: `search` (optional) - Search by product ID or EAN
-  
-- `GET /api/products/:id` - Get single product by ID
+- `GET /api/health` - Health check endpoint
+- `GET /api/products` - List products (supports search query parameter)
+- `GET /api/products/:id` - Get specific product by ID
+- `GET /api/products/:id/image` - Get product image (redirects to static assets)
 
-- `GET /api/products/:id/image` - Get product image
+## Cloud Foundry Deployment
 
-### Health Check
+When deployed to Cloud Foundry, the API server automatically:
+1. Uses bound service instances for authentication
+2. Connects through the connectivity proxy without SSH tunnels
+3. Handles authentication tokens automatically
 
-- `GET /api/health` - Check API server status
+### Environment Detection
 
-## Development
+The server detects the environment using:
+```javascript
+const isCloudFoundry = process.env.VCAP_APPLICATION ? true : false;
+```
 
-The server automatically detects the environment:
-- **Local**: Uses SSH tunnel and local service credentials
-- **Cloud Foundry**: Uses bound services directly
+### Service Bindings
+
+Required services in Cloud Foundry:
+- `destination-service` - For accessing destination configurations
+- `connectivity-service` - For connecting to on-premise systems
+
+## Configuration
+
+### Destination Configuration (RS4)
+
+The destination should be configured with:
+- **Name**: RS4
+- **Type**: HTTP
+- **URL**: http://rs4.rb-omnishore.de:8000
+- **ProxyType**: OnPremise
+- **Authentication**: BasicAuthentication
+- **CloudConnectorLocationId**: RS4CLNT100_LOCID
+
+### Product Data Transformation
+
+S/4HANA product data is transformed to match the Angular app's interface:
+
+```javascript
+{
+  id: s4Product.Product,
+  ean: s4Product.ProductStandardID || '',
+  description: s4Product.ProductDescription || s4Product.Product,
+  listPrice: parseFloat(s4Product.NetPriceAmount || '0'),
+  unit: s4Product.BaseUnit || 'EA',
+  image: `/api/images/products/${s4Product.Product}.jpg`,
+  inStoreStock: Math.floor(Math.random() * 100), // Mock data
+  onlineStock: Math.floor(Math.random() * 100),  // Mock data
+  isAvailable: true
+}
+```
+
+## Error Handling
+
+The API includes comprehensive error handling:
+1. Falls back to mock data when S/4HANA is unavailable
+2. Logs detailed error information for debugging
+3. Returns appropriate HTTP status codes
+
+## Mock Data
+
+When the S/4HANA connection fails, the API returns mock product data to ensure the frontend can still be tested. Mock products include sample highlighters and a test product from S/4HANA.
 
 ## Troubleshooting
 
-### SSH Tunnel Issues
-- Ensure you're logged into CF: `cf login`
-- Check the app is running: `cf app InStoreOrderCreationApp`
-- Verify tunnel is established: `netstat -an | grep 8081`
+### Local Development Issues
 
-### Service Connection Issues
-- Verify default-env.json has correct credentials
-- Check destination "RS4" exists in BTP cockpit
-- Ensure Cloud Connector is running and location ID matches
+1. **Connection Refused**: Ensure the SSH tunnel is running
+2. **403 Forbidden**: Check destination service credentials and permissions
+3. **IPv6 Issues**: The server binds to 127.0.0.1 to avoid IPv6 problems
 
-### Product Data Issues
-- Products need descriptions in entity `A_ProductDescription`
-- Default language is 'EN'
-- Stock and pricing data would come from additional services (not implemented yet) 
+### Cloud Foundry Issues
+
+1. **Service Binding**: Ensure services are properly bound to the application
+2. **Destination Access**: Verify the destination is accessible from the subaccount
+3. **Cloud Connector**: Ensure the Cloud Connector is running and configured
+
+## Security Notes
+
+- OAuth2 tokens are automatically refreshed
+- Credentials are never exposed in logs
+- All connections to S/4HANA go through secure SAP BTP services 

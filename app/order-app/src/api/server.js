@@ -1,7 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { HttpProxyAgent } = require('http-proxy-agent');
+const path = require('path');
+
+// Load environment variables from env.local file for local development
+if (!process.env.VCAP_SERVICES) {
+  try {
+    require('dotenv').config({ path: path.join(__dirname, 'env.local') });
+    console.log('Loaded env.local file for local development');
+  } catch (error) {
+    console.log('No env.local file found, using defaults');
+  }
+}
 
 // Load environment variables for local development
 if (!process.env.VCAP_SERVICES) {
@@ -79,76 +89,22 @@ async function getDestinationConfig() {
       }
     };
   } else {
-    // Local development - use SSH tunnel and local destination service
-    try {
-      console.log('Getting local services...');
-      
-      // Get local services using tags (works with default-env.json)
-      const services = xsenv.getServices({
-        destination: { tag: 'destination' },
-        connectivity: { tag: 'connectivity' },
-        xsuaa: { tag: 'xsuaa' }
-      });
-      
-      console.log('Services loaded, getting access token...');
-      
-      // Get access token
-      const tokenResponse = await axios.post(
-        `${services.xsuaa.url}/oauth/token`,
-        'grant_type=client_credentials',
-        {
-          headers: {
-            'Authorization': 'Basic ' + Buffer.from(`${services.xsuaa.clientid}:${services.xsuaa.clientsecret}`).toString('base64'),
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        }
-      );
-      
-      const accessToken = tokenResponse.data.access_token;
-      console.log('Access token obtained');
-      
-      // Get destination configuration
-      const destResponse = await axios.get(
-        `${services.destination.uri}/destination-configuration/v1/destinations/RS4`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        }
-      );
-      
-      const destination = destResponse.data;
-      console.log('Destination configuration obtained');
-      
-      // Get connectivity token
-      const connectivityTokenResponse = await axios.post(
-        `${services.xsuaa.url}/oauth/token`,
-        `grant_type=client_credentials&client_id=${services.connectivity.clientid}&client_secret=${services.connectivity.clientsecret}`,
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        }
-      );
-      
-      const connectivityToken = connectivityTokenResponse.data.access_token;
-      
-      return {
-        url: 'http://127.0.0.1:8081', // SSH tunnel endpoint
-        headers: {
-          'Authorization': `${destination.authTokens[0].type} ${destination.authTokens[0].value}`,
-          'Proxy-Authorization': `Bearer ${connectivityToken}`,
-          'SAP-Connectivity-SCC-Location_ID': destination.destinationConfiguration.CloudConnectorLocationId || 'RS4CLNT100_LOCID'
-        },
-        agent: new HttpProxyAgent('http://127.0.0.1:8081')
-      };
-    } catch (error) {
-      console.error('Error getting destination config:', error.message);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
+    // Local development - use direct connection to S/4HANA
+    console.log('Local development mode - using direct S/4HANA connection');
+    
+    // Get credentials from environment variables or use defaults
+    const username = process.env.S4HANA_USERNAME || 'YOUR_USERNAME_HERE';
+    const password = process.env.S4HANA_PASSWORD || 'YOUR_PASSWORD_HERE';
+    
+    // Direct connection to MERCHANDISE.REALCORE.DE
+    return {
+      url: 'http://MERCHANDISE.REALCORE.DE:8000',
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
-      throw error;
-    }
+    };
   }
 }
 
@@ -156,8 +112,8 @@ async function getDestinationConfig() {
 async function fetchFromOnPremise(path, options = {}) {
   try {
     if (!isCloudFoundry) {
-      // For local development, we need SSH tunnel to be running
-      console.log('Local development mode - ensure SSH tunnel is running');
+      // For local development, direct connection
+      console.log('Local development mode - direct S/4HANA connection');
     }
 
     const config = await getDestinationConfig();
@@ -183,11 +139,17 @@ async function fetchFromOnPremise(path, options = {}) {
     const fullUrl = url + queryString;
     console.log('Fetching from:', fullUrl);
     
-    const response = await axios.get(fullUrl, {
+    const requestConfig = {
       headers: config.headers,
-      httpsAgent: config.agent,
       proxy: false
-    });
+    };
+    
+    // Only add agent for Cloud Foundry (if needed)
+    if (config.agent) {
+      requestConfig.httpsAgent = config.agent;
+    }
+    
+    const response = await axios.get(fullUrl, requestConfig);
     
     return response.data;
   } catch (error) {
@@ -201,18 +163,53 @@ async function fetchFromOnPremise(path, options = {}) {
 }
 
 // Helper function to transform S/4HANA product to our format
-function transformProduct(s4Product) {
+function transformProduct(s4Product, description = '') {
   return {
     id: s4Product.Product,
     ean: s4Product.ProductStandardID || '',
-    description: s4Product.ProductDescription || s4Product.Product,
-    listPrice: parseFloat(s4Product.NetPriceAmount || '0'),
+    description: description || `Product ${s4Product.Product}`, // Use provided description or fallback
+    listPrice: parseFloat(s4Product.NetPriceAmount || '19.99'), // Default price if not available
     unit: s4Product.BaseUnit || 'EA',
     image: `/api/images/products/${s4Product.Product}.jpg`,
     inStoreStock: Math.floor(Math.random() * 100), // Mock data for now
     onlineStock: Math.floor(Math.random() * 100), // Mock data for now
     isAvailable: true
   };
+}
+
+// Helper function to fetch product descriptions
+async function fetchProductDescriptions(productIds, config) {
+  try {
+    if (productIds.length === 0) return {};
+    
+    const filter = productIds.map(id => `Product eq '${id}'`).join(' or ');
+    
+    const requestConfig = {
+      headers: config.headers,
+      proxy: false
+    };
+    
+    // Only add agent for Cloud Foundry (if needed)
+    if (config.agent) {
+      requestConfig.httpsAgent = config.agent;
+    }
+    
+    const response = await axios.get(
+      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_ProductDescription?$format=json&$filter=(${filter}) and Language eq 'EN'`,
+      requestConfig
+    );
+    
+    const descriptions = {};
+    if (response.data && response.data.d && response.data.d.results) {
+      response.data.d.results.forEach(desc => {
+        descriptions[desc.Product] = desc.ProductDescription;
+      });
+    }
+    return descriptions;
+  } catch (error) {
+    console.error('Error fetching product descriptions:', error.message);
+    return {};
+  }
 }
 
 // API endpoints
@@ -224,25 +221,63 @@ app.get('/api/products', async (req, res) => {
   const searchQuery = req.query.search || '';
   
   try {
-    // Fetch products from S/4HANA
-    const response = await fetchFromOnPremise('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+    // First, check if we can connect
+    const config = await getDestinationConfig();
+    
+    // For now, don't filter at OData level - fetch all and filter in memory
+    // This is because descriptions are fetched separately
+    const requestConfig = {
       params: {
-        '$top': '20',
-        '$select': 'Product,ProductDescription,ProductStandardID,BaseUnit,NetPriceAmount',
-        ...(searchQuery && { 
-          '$filter': `substringof('${searchQuery}', Product) or substringof('${searchQuery}', ProductDescription)` 
-        })
-      }
-    });
+        '$format': 'json',
+        '$top': '100', // Increased to get more products
+        '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
+      },
+      headers: config.headers,
+      proxy: false
+    };
+    
+    // Only add agent for Cloud Foundry (if needed)
+    if (config.agent) {
+      requestConfig.httpsAgent = config.agent;
+    }
+    
+    // Fetch products from S/4HANA
+    const response = await axios.get(
+      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product`,
+      requestConfig
+    );
 
-    const products = (response.d?.results || []).map(transformProduct);
+    const products = response.data.d?.results || [];
+    
+    // Fetch descriptions for all products
+    const productIds = products.map(p => p.Product);
+    const descriptions = await fetchProductDescriptions(productIds, config);
+    
+    // Transform products with descriptions
+    let transformedProducts = products.map(p => 
+      transformProduct(p, descriptions[p.Product])
+    );
+    
+    // Filter products based on search query
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      transformedProducts = transformedProducts.filter(p => 
+        p.description.toLowerCase().includes(searchLower) ||
+        p.ean.toLowerCase().includes(searchLower) ||
+        p.id.toLowerCase().includes(searchLower)
+      );
+    }
     
     res.json({
-      products,
-      totalCount: products.length
+      products: transformedProducts,
+      totalCount: transformedProducts.length
     });
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('Error fetching products:', error.message);
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+    }
     
     // Return mock data as fallback
     const mockProducts = [
@@ -311,21 +346,38 @@ app.get('/api/products/:id', async (req, res) => {
   const productId = req.params.id;
   
   try {
-    // Fetch specific product from S/4HANA
-    const response = await fetchFromOnPremise(`/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')`, {
+    const config = await getDestinationConfig();
+    
+    const requestConfig = {
       params: {
-        '$select': 'Product,ProductDescription,ProductStandardID,BaseUnit,NetPriceAmount,GrossWeight,NetWeight,WeightUnit'
-      }
-    });
+        '$format': 'json',
+        '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
+      },
+      headers: config.headers,
+      proxy: false
+    };
+    
+    // Only add agent for Cloud Foundry (if needed)
+    if (config.agent) {
+      requestConfig.httpsAgent = config.agent;
+    }
+    
+    // Fetch specific product from S/4HANA
+    const response = await axios.get(
+      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')`,
+      requestConfig
+    );
 
-    if (response.d) {
-      const product = transformProduct(response.d);
+    if (response.data && response.data.d) {
+      // Fetch description for this product
+      const descriptions = await fetchProductDescriptions([productId], config);
+      const product = transformProduct(response.data.d, descriptions[productId]);
       res.json(product);
     } else {
       res.status(404).json({ error: 'Product not found' });
     }
   } catch (error) {
-    console.error('Error fetching product:', error);
+    console.error('Error fetching product:', error.message);
     
     // Return mock data as fallback
     const mockProducts = {
@@ -375,11 +427,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', details: err.message });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`API server running on port ${PORT}`);
-  console.log(`Environment: ${isCloudFoundry ? 'Cloud Foundry' : 'Local Development'}`);
-  console.log(`Health check available at: http://localhost:${PORT}/api/health`);
-});
+// Start server only if this file is run directly
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`API server running on port ${PORT}`);
+    console.log(`Environment: ${isCloudFoundry ? 'Cloud Foundry' : 'Local Development'}`);
+    console.log(`Health check available at: http://localhost:${PORT}/api/health`);
+  });
+}
 
 module.exports = app; 

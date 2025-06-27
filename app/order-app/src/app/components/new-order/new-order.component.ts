@@ -1,7 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Observable } from 'rxjs';
+import { Observable, Subject, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs';
 
 import { ProductService } from '../../services/product.service';
 import { CartService } from '../../services/cart.service';
@@ -17,12 +17,16 @@ import { Cart, CartItem, CustomerDetails, ShippingOption, PaymentOption, Order }
   templateUrl: './new-order.component.html',
   styleUrls: ['./new-order.component.scss']
 })
-export class NewOrderComponent implements OnInit {
+export class NewOrderComponent implements OnInit, OnDestroy {
   searchQuery = '';
   searchResults: Product[] = [];
   isSearching = false;
   selectedProduct: Product | null = null;
   cart$: Observable<Cart>;
+  
+  // Search subject for debouncing
+  private searchSubject = new Subject<string>();
+  private destroy$ = new Subject<void>();
   
   // Track image loading state for each product
   private imageLoadedState = new Map<string, boolean>();
@@ -67,27 +71,48 @@ export class NewOrderComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Initialize with some search results
-    this.productService.getAllProducts().subscribe(products => {
-      this.searchResults = products;
-    });
-  }
-
-  onSearch(): void {
-    if (this.searchQuery.trim().length < 3) {
-      return;
-    }
-    
-    this.isSearching = true;
-    this.productService.searchProducts(this.searchQuery).subscribe({
+    // Set up search with debouncing
+    this.searchSubject.pipe(
+      debounceTime(300), // Wait 300ms after user stops typing
+      distinctUntilChanged(), // Only search if the value changed
+      switchMap(query => {
+        if (query.trim().length === 0) {
+          // Clear results if search is empty
+          this.searchResults = [];
+          this.isSearching = false;
+          return [];
+        }
+        
+        this.isSearching = true;
+        return this.productService.searchProducts(query);
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (result: ProductSearchResult) => {
         this.searchResults = result.products;
         this.isSearching = false;
       },
       error: () => {
         this.isSearching = false;
+        this.searchResults = [];
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  onSearchInput(): void {
+    this.searchSubject.next(this.searchQuery);
+  }
+
+  onSearch(): void {
+    // This is now called when Enter is pressed
+    if (this.searchQuery.trim().length > 0) {
+      this.searchSubject.next(this.searchQuery);
+    }
   }
 
   selectProduct(product: Product): void {

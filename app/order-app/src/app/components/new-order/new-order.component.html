@@ -6,6 +6,7 @@
         <input 
           type="text" 
           [(ngModel)]="searchQuery" 
+          (ngModelChange)="onSearchInput()"
           (keyup.enter)="onSearch()"
           [placeholder]="'search.placeholder' | translate"
           class="search-input">
@@ -22,6 +23,10 @@
       </div>
       
       <div *ngIf="isSearching" class="loading">{{ 'search.searching' | translate }}</div>
+      
+      <div *ngIf="!isSearching && searchQuery.trim().length > 0 && searchResults.length === 0" class="no-results">
+        <p>{{ 'search.noProductsFound' | translate }} "{{ searchQuery }}"</p>
+      </div>
       
       <div *ngIf="searchResults.length > 0 && !isSearching" class="search-results">
         <table class="results-table">

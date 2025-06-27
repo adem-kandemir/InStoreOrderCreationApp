@@ -28,7 +28,8 @@ export class LocalizationService {
       search: {
         placeholder: 'Search products by description or number',
         searching: 'Searching...',
-        noResults: 'No products found'
+        noResults: 'No products found',
+        noProductsFound: 'No products found for'
       },
       
       // Product Table
@@ -167,7 +168,8 @@ export class LocalizationService {
       search: {
         placeholder: 'Produkte nach Beschreibung oder Nummer suchen',
         searching: 'Suche läuft...',
-        noResults: 'Keine Produkte gefunden'
+        noResults: 'Keine Produkte gefunden',
+        noProductsFound: 'Keine Produkte gefunden für'
       },
       
       // Product Table
