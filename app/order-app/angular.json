@@ -95,7 +95,8 @@
               "buildTarget": "order-app:build:development"
             },
             "local": {
-              "buildTarget": "order-app:build:local"
+              "buildTarget": "order-app:build:local",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "local"

@@ -10,4 +10,8 @@ applications:
   routes:
     - route: instoreorderapp.cfapps.eu10-004.hana.ondemand.com
   env:
-    FORCE_HTTPS: true 
+    FORCE_HTTPS: "true"
+  services:
+    - InStoreOrderCreationApp-auth
+    - InStoreOrderCreationApp-destination
+    - InStoreOrderCreationApp-connectivity 

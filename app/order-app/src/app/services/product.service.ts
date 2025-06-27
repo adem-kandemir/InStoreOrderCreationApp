@@ -1,69 +1,54 @@
 import { Injectable } from '@angular/core';
-import { Observable, of, delay } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { Observable, of, catchError, map } from 'rxjs';
 import { Product, ProductSearchResult } from '../models/product.interface';
-import { ImageService } from './image.service';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ProductService {
-  constructor(private imageService: ImageService) {}
+  private apiUrl = environment.apiUrl;
 
-  private mockProducts: Product[] = [
-    {
-      id: '123',
-      ean: '9780201379617',
-      description: 'RBO NRG Cup2Go',
-      listPrice: 15.99,
-      unit: 'ST',
-      image: this.imageService.getProductImageUrl('123'),
-      inStoreStock: 12,
-      onlineStock: 93,
-      isAvailable: true
-    },
-    {
-      id: '124',
-      ean: '9780201379618',
-      description: 'RBO NRG Cup2Go Premium',
-      listPrice: 18.99,
-      unit: 'ST',
-      image: this.imageService.getProductImageUrl('124'),
-      inStoreStock: 8,
-      onlineStock: 45,
-      isAvailable: true
-    },
-    {
-      id: '125',
-      ean: '9780201379619',
-      description: 'RBO NRG Cup2Go Deluxe',
-      listPrice: 22.99,
-      unit: 'ST',
-      image: this.imageService.getProductImageUrl('125'),
-      inStoreStock: 5,
-      onlineStock: 23,
-      isAvailable: true
-    }
-  ];
+  constructor(private http: HttpClient) {}
 
   searchProducts(query: string): Observable<ProductSearchResult> {
-    const filteredProducts = this.mockProducts.filter(product =>
-      product.description.toLowerCase().includes(query.toLowerCase()) ||
-      product.ean.includes(query) ||
-      product.id.includes(query)
+    const url = `${this.apiUrl}/products${query ? '?search=' + encodeURIComponent(query) : ''}`;
+    
+    return this.http.get<ProductSearchResult>(url).pipe(
+      catchError(error => {
+        console.error('Error searching products:', error);
+        // Fallback to empty result on error
+        return of({
+          products: [],
+          totalCount: 0
+        });
+      })
     );
-
-    return of({
-      products: filteredProducts,
-      totalCount: filteredProducts.length
-    }).pipe(delay(300)); // Simulate API delay
   }
 
   getProductById(id: string): Observable<Product | null> {
-    const product = this.mockProducts.find(p => p.id === id);
-    return of(product || null).pipe(delay(200));
+    const url = `${this.apiUrl}/products/${encodeURIComponent(id)}`;
+    
+    return this.http.get<Product>(url).pipe(
+      catchError(error => {
+        console.error('Error fetching product:', error);
+        return of(null);
+      })
+    );
   }
 
   getAllProducts(): Observable<Product[]> {
-    return of(this.mockProducts).pipe(delay(200));
+    return this.searchProducts('').pipe(
+      map(result => result.products)
+    );
+  }
+
+  // Additional method to check API health
+  checkApiHealth(): Observable<boolean> {
+    return this.http.get<any>(`${this.apiUrl}/health`).pipe(
+      map(() => true),
+      catchError(() => of(false))
+    );
   }
 } 

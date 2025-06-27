@@ -1,0 +1,48 @@
+{
+  "VCAP_SERVICES": {
+    "destination": [
+      {
+        "name": "InStoreOrderCreationApp-destination",
+        "label": "destination",
+        "tags": ["destination"],
+        "credentials": {
+          "uri": "https://destination-configuration.cfapps.eu10-004.hana.ondemand.com",
+          "clientid": "YOUR_DESTINATION_CLIENT_ID",
+          "clientsecret": "YOUR_DESTINATION_CLIENT_SECRET",
+          "xsappname": "YOUR_DESTINATION_XSAPPNAME",
+          "tenantid": "YOUR_TENANT_ID"
+        }
+      }
+    ],
+    "connectivity": [
+      {
+        "name": "InStoreOrderCreationApp-connectivity",
+        "label": "connectivity",
+        "tags": ["connectivity"],
+        "credentials": {
+          "clientid": "YOUR_CONNECTIVITY_CLIENT_ID",
+          "clientsecret": "YOUR_CONNECTIVITY_CLIENT_SECRET",
+          "xsappname": "YOUR_CONNECTIVITY_XSAPPNAME",
+          "tenantid": "YOUR_TENANT_ID",
+          "onpremise_proxy_host": "connectivityproxy.internal.cf.eu10-004.hana.ondemand.com",
+          "onpremise_proxy_port": 20003
+        }
+      }
+    ],
+    "xsuaa": [
+      {
+        "name": "InStoreOrderCreationApp-xsuaa",
+        "label": "xsuaa",
+        "tags": ["xsuaa"],
+        "credentials": {
+          "url": "https://YOUR_SUBDOMAIN.authentication.eu10.hana.ondemand.com",
+          "clientid": "YOUR_XSUAA_CLIENT_ID",
+          "clientsecret": "YOUR_XSUAA_CLIENT_SECRET",
+          "xsappname": "YOUR_XSUAA_XSAPPNAME",
+          "tenantid": "YOUR_TENANT_ID",
+          "uaadomain": "authentication.eu10.hana.ondemand.com"
+        }
+      }
+    ]
+  }
+} 

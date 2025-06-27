@@ -9,5 +9,6 @@ applications:
   services:
     - InStoreOrderCreationApp-auth
     - InStoreOrderCreationApp-destination
+    - InStoreOrderCreationApp-connectivity
   env:
     NODE_ENV: production 
