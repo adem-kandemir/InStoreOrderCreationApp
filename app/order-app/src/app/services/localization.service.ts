@@ -58,7 +58,10 @@ export class LocalizationService {
         otherLocations: 'Stock in other branches',
         pieces: 'pieces',
         addToCart: 'Add to cart',
-        refresh: 'Refresh product details'
+        refresh: 'Refresh product details',
+        noAvailability: 'No availability information available',
+        detailedAvailability: 'Detailed Availability',
+        updated: 'Updated'
       },
       
       // Cart
@@ -205,7 +208,10 @@ export class LocalizationService {
         otherLocations: 'Bestand in weiteren Filialen',
         pieces: 'Stück',
         addToCart: 'zum Warenkorb hinzufügen',
-        refresh: 'Produktdetails aktualisieren'
+        refresh: 'Produktdetails aktualisieren',
+        noAvailability: 'Verfügbarkeitsinformationen nicht verfügbar',
+        detailedAvailability: 'Detaillierte Verfügbarkeit',
+        updated: 'Aktualisiert'
       },
       
       // Cart

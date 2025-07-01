@@ -8,8 +8,11 @@ class OppsService {
   constructor() {
     this.systemName = 'OPPS';
     this.priceCache = new Map(); // Cache for OPPS pricing data
+    this.metadataCache = new Map(); // Cache for metadata URIs
     this.lastFetchTime = null;
     this.cacheExpiryMinutes = 30; // Cache expires after 30 minutes
+    this.sessionRequestCount = 0; // Track requests in current session
+    this.lastSessionRefresh = null; // Track when we last refreshed for a session
     
     // Start fetching prices at startup
     this.initializePriceCache();
@@ -60,12 +63,23 @@ class OppsService {
    * @param {Object} oppsResponse - Raw OPPS API response
    */
   transformAndCacheOppsPrices(oppsResponse) {
-    if (!oppsResponse || !oppsResponse.value) {
-      console.warn('OPPS: Invalid response format, no value array found');
+    // Handle both possible response formats
+    let results = null;
+    if (oppsResponse && oppsResponse.d && oppsResponse.d.results) {
+      results = oppsResponse.d.results; // OData v2 format
+    } else if (oppsResponse && oppsResponse.value) {
+      results = oppsResponse.value; // OData v4 format
+    }
+    
+    if (!results || !Array.isArray(results)) {
+      console.warn('OPPS: Invalid response format, no results array found');
+      console.log('OPPS: Response structure:', JSON.stringify(oppsResponse, null, 2));
       return;
     }
 
-    oppsResponse.value.forEach(priceRecord => {
+    console.log(`OPPS: Processing ${results.length} price records...`);
+
+    results.forEach(priceRecord => {
       // Transform itemID from OPPS format to our product ID format
       // OPPS: "000000000000000029" (18 chars) -> Our format: "29"
       // OPPS: "000000000000000130" (18 chars) -> Our format: "130"
@@ -91,6 +105,26 @@ class OppsService {
         source: 'OPPS'
       };
 
+      // Cache metadata URI for real-time individual product calls
+      if (priceRecord.__metadata && priceRecord.__metadata.uri) {
+        const metadataInfo = {
+          uri: priceRecord.__metadata.uri,
+          id: priceRecord.__metadata.id,
+          type: priceRecord.__metadata.type,
+          productId: productId,
+          businessUnitID: priceRecord.businessUnitID,
+          businessUnitType: priceRecord.businessUnitType
+        };
+        
+        // Cache by product ID, store multiple business units if they exist
+        if (!this.metadataCache.has(productId)) {
+          this.metadataCache.set(productId, []);
+        }
+        this.metadataCache.get(productId).push(metadataInfo);
+        
+        console.log(`OPPS: Cached metadata URI for product ${productId}: ${priceRecord.__metadata.uri}`);
+      }
+
       // Cache by product ID, store multiple business units if they exist
       if (!this.priceCache.has(productId)) {
         this.priceCache.set(productId, []);
@@ -99,6 +133,12 @@ class OppsService {
     });
 
     console.log(`OPPS: Transformed and cached prices for ${this.priceCache.size} products`);
+    console.log(`OPPS: Cached metadata URIs for ${this.metadataCache.size} products`);
+    
+    // Debug: Log all cached metadata
+    this.metadataCache.forEach((entries, productId) => {
+      console.log(`OPPS: Product ${productId} has ${entries.length} metadata entries`);
+    });
   }
 
   /**
@@ -133,13 +173,34 @@ class OppsService {
 
   /**
    * Check if price cache needs refresh
+   * @param {Object} options - Options including forceRefresh flag
    * @returns {boolean}
    */
-  isCacheExpired() {
+  isCacheExpired(options = {}) {
+    // Force refresh if explicitly requested
+    if (options.forceRefresh) return true;
+    
+    // If no data cached, refresh needed
     if (!this.lastFetchTime) return true;
     
+    // Check for new session (page refresh) - refresh every 10 requests or 5 minutes
+    const now = Date.now();
+    const timeSinceLastSessionRefresh = this.lastSessionRefresh ? now - this.lastSessionRefresh : Infinity;
+    const shouldRefreshForSession = (
+      this.sessionRequestCount === 0 || // First request
+      this.sessionRequestCount % 10 === 0 || // Every 10 requests
+      timeSinceLastSessionRefresh > 5 * 60 * 1000 // Every 5 minutes
+    );
+    
+    if (shouldRefreshForSession) {
+      console.log('OPPS: Refreshing prices for new session/page refresh');
+      this.lastSessionRefresh = now;
+      return true;
+    }
+    
+    // Regular time-based expiry (30 minutes)
     const expiryTime = this.lastFetchTime + (this.cacheExpiryMinutes * 60 * 1000);
-    return Date.now() > expiryTime;
+    return now > expiryTime;
   }
 
   /**
@@ -166,6 +227,80 @@ class OppsService {
   }
 
   /**
+   * Get real-time pricing for a specific product using cached metadata URI
+   * @param {string} productId - Product ID
+   * @param {string} businessUnitID - Optional business unit filter
+   * @returns {Promise<Object|null>} Real-time pricing data
+   */
+  async getRealTimePricing(productId, businessUnitID = null) {
+    try {
+      console.log(`OPPS: Looking for metadata URI for product ${productId}, businessUnit: ${businessUnitID}`);
+      console.log(`OPPS: Metadata cache has ${this.metadataCache.size} entries`);
+      
+      const metadataEntries = this.metadataCache.get(productId);
+      
+      if (!metadataEntries || metadataEntries.length === 0) {
+        console.log(`OPPS: No metadata URI found for product ${productId}`);
+        console.log(`OPPS: Available products in metadata cache:`, Array.from(this.metadataCache.keys()));
+        return null;
+      }
+      
+      console.log(`OPPS: Found ${metadataEntries.length} metadata entries for product ${productId}`);
+
+      // Find the right metadata entry for the business unit
+      let selectedMetadata = metadataEntries[0]; // Default to first
+      if (businessUnitID) {
+        const filtered = metadataEntries.find(entry => entry.businessUnitID === businessUnitID);
+        if (filtered) {
+          selectedMetadata = filtered;
+        }
+      }
+
+      console.log(`OPPS: Getting real-time price for product ${productId} using URI: ${selectedMetadata.uri}`);
+
+      // Make direct call to the cached URI
+      const response = await authService.makeAuthenticatedRequest(
+        this.systemName,
+        '', // Empty endpoint since we're using full URI
+        {
+          method: 'GET',
+          url: selectedMetadata.uri // Override the base URL with full URI
+        }
+      );
+
+      // Transform the single product response
+      if (response && (response.d || response)) {
+        const priceRecord = response.d || response;
+        const realTimePrice = {
+          productId: productId,
+          originalItemID: priceRecord.itemID,
+          listPrice: parseFloat(priceRecord.priceAmt || 0),
+          salePrice: parseFloat(priceRecord.priceAmt || 0),
+          currency: priceRecord.currencyCode || 'EUR',
+          unitOfMeasure: priceRecord.unitOfMeasureCode || 'PCE',
+          priceClassification: priceRecord.priceClassification || 'PRICE_NET',
+          businessUnitID: priceRecord.businessUnitID,
+          businessUnitType: priceRecord.businessUnitType,
+          effectiveDate: priceRecord.effectiveDate,
+          expiryDate: priceRecord.expiryDate,
+          lastUpdated: priceRecord.lastCalcRelevantChange || new Date().toISOString(),
+          tenant: priceRecord.tenant,
+          logicalSystem: priceRecord.logicalSystem,
+          source: 'OPPS-RealTime'
+        };
+
+        console.log(`OPPS: Real-time price for product ${productId}: €${realTimePrice.listPrice}`);
+        return realTimePrice;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error getting real-time pricing for product ${productId}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
    * Get product pricing information
    * @param {string|Array} productIds - Single product ID or array of product IDs
    * @param {Object} options - Additional options (store, customer, etc.)
@@ -175,8 +310,11 @@ class OppsService {
     try {
       const ids = Array.isArray(productIds) ? productIds : [productIds];
       
-      // Check if cache needs refresh
-      if (this.isCacheExpired()) {
+      // Increment session request count
+      this.sessionRequestCount++;
+      
+      // Check if cache needs refresh (including session-based refresh)
+      if (this.isCacheExpired(options)) {
         console.log('OPPS: Cache expired, refreshing...');
         await this.fetchAllPrices();
       }
@@ -185,23 +323,38 @@ class OppsService {
       const pricingData = {};
       const businessUnitID = options.storeId || process.env.DEFAULT_STORE_ID;
 
-      ids.forEach(productId => {
-        const cachedPrice = this.getCachedPrice(productId, businessUnitID);
-        
-        if (cachedPrice) {
+      // Process products individually or in batch
+      for (const productId of ids) {
+        let priceData = null;
+
+        // For individual product searches (single product), get real-time pricing
+        if (ids.length === 1 && !options.batchMode) {
+          console.log(`OPPS: Single product request for ${productId}, getting real-time pricing...`);
+          priceData = await this.getRealTimePricing(productId, businessUnitID);
+        }
+
+        // If real-time failed or this is a batch request, use cached data
+        if (!priceData) {
+          const cachedPrice = this.getCachedPrice(productId, businessUnitID);
+          if (cachedPrice) {
+            priceData = cachedPrice;
+          }
+        }
+
+        if (priceData) {
           pricingData[productId] = {
             productId: productId,
-            listPrice: cachedPrice.listPrice,
-            salePrice: cachedPrice.salePrice,
-            currency: cachedPrice.currency,
-            unitOfMeasure: cachedPrice.unitOfMeasure,
-            priceClassification: cachedPrice.priceClassification,
-            businessUnitID: cachedPrice.businessUnitID,
-            effectiveDate: cachedPrice.effectiveDate,
-            expiryDate: cachedPrice.expiryDate,
-            lastUpdated: cachedPrice.lastUpdated,
+            listPrice: priceData.listPrice,
+            salePrice: priceData.salePrice,
+            currency: priceData.currency,
+            unitOfMeasure: priceData.unitOfMeasure,
+            priceClassification: priceData.priceClassification,
+            businessUnitID: priceData.businessUnitID,
+            effectiveDate: priceData.effectiveDate,
+            expiryDate: priceData.expiryDate,
+            lastUpdated: priceData.lastUpdated,
             priceValid: true,
-            source: 'OPPS'
+            source: priceData.source || 'OPPS'
           };
         } else {
           // Product not found in OPPS, use fallback
@@ -209,7 +362,7 @@ class OppsService {
           const fallback = this.getFallbackPricing([productId]);
           pricingData[productId] = fallback[productId];
         }
-      });
+      }
 
       return pricingData;
       

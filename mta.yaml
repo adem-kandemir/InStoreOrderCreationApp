@@ -40,12 +40,6 @@ modules:
         # Default Store Configuration
         DEFAULT_STORE_ID: STORE001
         
-        # OPPS (Price and Promotion Service) Configuration
-        OPPS_CLIENT_ID: sb-4774874b-da35-4dd9-8b59-8ecd7d0a17ef!b59628|ppservice-cf-OPPS_oppsprodeu20-prod!b5785
-        OPPS_CLIENT_SECRET: df37408a-5cdb-4b58-a145-d27a8797ba10$bPZjkBtg6NWOmIrCpmUAx34elbb3saNwdsZW8OiWKhk=
-        OPPS_TOKEN_URL: https://rbos-showcase-zzai01ti.authentication.eu20.hana.ondemand.com/oauth/token
-        OPPS_BASE_URL: https://data-access.api.eu20.opps.cloud.sap/odata/v4/OPPS
-        
         # OMSA (Sourcing and Availability Service) Configuration
         OMSA_CLIENT_ID: ((omsa-client-id))
         OMSA_CLIENT_SECRET: ((omsa-client-secret))
@@ -64,6 +58,8 @@ modules:
     requires:
       - name: InStoreOrderCreationApp-auth
       - name: InStoreOrderCreationApp-destination
+      - name: opps-credentials
+      - name: omsa-credentials
     provides:
       - name: api-backend-app
         properties:
@@ -86,3 +82,7 @@ resources:
     parameters:
       service: destination
       service-plan: lite
+  - name: opps-credentials
+    type: org.cloudfoundry.existing-service
+  - name: omsa-credentials
+    type: org.cloudfoundry.existing-service

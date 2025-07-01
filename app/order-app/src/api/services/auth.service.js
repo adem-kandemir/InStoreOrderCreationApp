@@ -62,11 +62,64 @@ class AuthService {
   }
 
   /**
-   * Get system-specific credentials from environment variables
+   * Get system-specific credentials from environment variables or VCAP_SERVICES
    * @param {string} system - System name (OPPS, OMSA, OMF)
    * @returns {Object} System credentials
    */
   getSystemCredentials(system) {
+    if (system === 'OPPS') {
+      // Read OPPS credentials from VCAP_SERVICES (bound service)
+      try {
+        const vcapServices = JSON.parse(process.env.VCAP_SERVICES || '{}');
+        const oppsService = vcapServices['user-provided']?.find(service => 
+          service.name === 'opps-credentials'
+        );
+        
+        if (oppsService && oppsService.credentials) {
+          const creds = oppsService.credentials;
+          return {
+            clientId: creds.client_id,
+            clientSecret: creds.client_secret,
+            tokenUrl: creds.token_url,
+            baseUrl: creds.base_url
+          };
+        }
+        
+        // Fallback to environment variables if VCAP_SERVICES not found
+        console.log('OPPS: VCAP_SERVICES not found, falling back to environment variables');
+      } catch (error) {
+        console.error('OPPS: Error parsing VCAP_SERVICES:', error.message);
+        console.log('OPPS: Falling back to environment variables');
+      }
+    }
+    
+    if (system === 'OMSA') {
+      // Read OMSA credentials from VCAP_SERVICES (bound service)
+      try {
+        const vcapServices = JSON.parse(process.env.VCAP_SERVICES || '{}');
+        const omsaService = vcapServices['user-provided']?.find(service => 
+          service.name === 'omsa-credentials'
+        );
+        
+        if (omsaService && omsaService.credentials) {
+          const creds = omsaService.credentials;
+          return {
+            clientId: creds.client_id,
+            clientSecret: creds.client_secret,
+            tokenUrl: creds.token_url,
+            baseUrl: creds.base_url
+          };
+        }
+        
+        // Fallback to environment variables if VCAP_SERVICES not found
+        console.log('OMSA: VCAP_SERVICES not found, falling back to environment variables');
+      } catch (error) {
+        console.error('OMSA: Error parsing VCAP_SERVICES:', error.message);
+        console.log('OMSA: Falling back to environment variables');
+      }
+    }
+    
+    // Original logic for OMSA, OMF and fallback for OPPS
     const systemUpper = system.toUpperCase();
     
     const credentials = {
@@ -79,9 +132,25 @@ class AuthService {
     // Validate that all required credentials are present
     const missing = Object.entries(credentials)
       .filter(([key, value]) => !value)
-      .map(([key]) => `${systemUpper}_${key.toUpperCase()}`);
+      .map(([key]) => {
+        // Map camelCase to proper env var names
+        const envVarMap = {
+          clientId: 'CLIENT_ID',
+          clientSecret: 'CLIENT_SECRET', 
+          tokenUrl: 'TOKEN_URL',
+          baseUrl: 'BASE_URL'
+        };
+        return `${systemUpper}_${envVarMap[key] || key.toUpperCase()}`;
+      });
 
     if (missing.length > 0) {
+      console.error(`Missing credentials for ${system}:`, missing);
+      if (system === 'OPPS') {
+        console.error('OPPS: Make sure opps-credentials service is bound to the application');
+        console.error('Available VCAP_SERVICES:', Object.keys(JSON.parse(process.env.VCAP_SERVICES || '{}')));
+      } else {
+        console.error('Available environment variables:', Object.keys(process.env).filter(key => key.startsWith(systemUpper)));
+      }
       throw new Error(`Missing ${system} credentials: ${missing.join(', ')}`);
     }
 
@@ -116,10 +185,13 @@ class AuthService {
       
       const requestConfig = {
         method: options.method || 'GET',
-        url: `${credentials.baseUrl}${endpoint}`,
+        url: options.url || `${credentials.baseUrl}${endpoint}`, // Allow URL override for metadata calls
         headers: headers,
         ...options
       };
+
+      // Remove the url from options to avoid axios confusion
+      delete requestConfig.url_override;
 
       console.log(`Making ${requestConfig.method} request to ${system}: ${requestConfig.url}`);
       

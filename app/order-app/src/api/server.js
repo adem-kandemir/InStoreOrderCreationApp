@@ -275,7 +275,10 @@ app.get('/api/health', (req, res) => {
 // OPPS Service Endpoints - Pricing and Promotions
 app.get('/api/pricing/:productId', async (req, res) => {
   try {
-    const pricing = await oppsService.getProductPricing(req.params.productId);
+    const options = {
+      forceRefresh: req.query.refresh === 'true' || req.query.force === 'true'
+    };
+    const pricing = await oppsService.getProductPricing(req.params.productId, options);
     res.json(pricing);
   } catch (error) {
     console.error('Error getting pricing:', error.message);
@@ -286,11 +289,29 @@ app.get('/api/pricing/:productId', async (req, res) => {
 app.post('/api/pricing/batch', async (req, res) => {
   try {
     const { productIds, options } = req.body;
-    const pricing = await oppsService.getProductPricing(productIds, options);
+    const batchOptions = { ...options, batchMode: true }; // Force batch mode
+    const pricing = await oppsService.getProductPricing(productIds, batchOptions);
     res.json(pricing);
   } catch (error) {
     console.error('Error getting batch pricing:', error.message);
     res.status(500).json({ error: 'Failed to get pricing information' });
+  }
+});
+
+// Real-time pricing endpoint using metadata URI
+app.get('/api/pricing/:productId/realtime', async (req, res) => {
+  try {
+    const businessUnitID = req.query.storeId || process.env.DEFAULT_STORE_ID;
+    const realTimePrice = await oppsService.getRealTimePricing(req.params.productId, businessUnitID);
+    
+    if (realTimePrice) {
+      res.json({ [req.params.productId]: realTimePrice });
+    } else {
+      res.status(404).json({ error: 'Product not found or no metadata URI available' });
+    }
+  } catch (error) {
+    console.error('Error getting real-time pricing:', error.message);
+    res.status(500).json({ error: 'Failed to get real-time pricing information' });
   }
 });
 
@@ -315,10 +336,27 @@ app.post('/api/pricing-promotions/batch', async (req, res) => {
   }
 });
 
+// Force refresh prices endpoint
+app.post('/api/pricing/refresh', async (req, res) => {
+  try {
+    console.log('Manual price refresh requested');
+    await oppsService.fetchAllPrices();
+    res.json({ 
+      success: true, 
+      message: 'Prices refreshed successfully', 
+      timestamp: new Date().toISOString(),
+      cachedProducts: oppsService.priceCache.size
+    });
+  } catch (error) {
+    console.error('Error refreshing prices:', error.message);
+    res.status(500).json({ error: 'Failed to refresh prices' });
+  }
+});
+
 // OMSA Service Endpoints - Sourcing and Availability
 app.get('/api/availability/:productId', async (req, res) => {
   try {
-    const availability = await omsaService.getProductAvailability(req.params.productId, req.query);
+    const availability = await omsaService.getProductAvailabilityFromAPI(req.params.productId, req.query);
     res.json(availability);
   } catch (error) {
     console.error('Error getting availability:', error.message);
@@ -329,7 +367,7 @@ app.get('/api/availability/:productId', async (req, res) => {
 app.post('/api/availability/batch', async (req, res) => {
   try {
     const { productIds, options } = req.body;
-    const availability = await omsaService.getProductAvailability(productIds, options);
+    const availability = await omsaService.getBatchAvailability(productIds, options);
     res.json(availability);
   } catch (error) {
     console.error('Error getting batch availability:', error.message);
@@ -519,17 +557,36 @@ app.get('/api/products', async (req, res) => {
         inStoreStock: 15,
         onlineStock: 45,
         isAvailable: true
+      },
+      {
+        id: '128',
+        ean: '1234567890128',
+        description: 'RBO Test Item with Availability',
+        unit: 'PC',
+        image: '/api/images/products/128.jpg',
+        inStoreStock: 50,
+        onlineStock: 100,
+        isAvailable: true
       }
     ];
 
     // Enrich mock products with real OPPS pricing
     const mockProducts = [];
+    const refreshPrices = req.query.refresh === 'true' || req.query.force === 'true';
+    
+    // Smart price refresh logic: refresh on search but respect caching for performance
+    // This will trigger the OPPS service's session-based refresh logic
+    const searchOptions = {
+      storeId: req.query.storeId || process.env.DEFAULT_STORE_ID,
+      forceRefresh: refreshPrices,
+      // Use real-time pricing for individual searches (when search is specific)
+      batchMode: !searchQuery || searchQuery.trim().length === 0
+    };
+    
     for (const product of baseMockProducts) {
       try {
         // Get real pricing from OPPS for this product
-        const oppsPricing = await oppsService.getProductPricing(product.id, { 
-          storeId: req.query.storeId || process.env.DEFAULT_STORE_ID 
-        });
+        const oppsPricing = await oppsService.getProductPricing(product.id, searchOptions);
         
         if (oppsPricing && oppsPricing[product.id]) {
           // Use real OPPS pricing
@@ -722,16 +779,15 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/:id', async (req, res) => {
   const productId = req.params.id;
   
-  // Use mock data for Cloud Foundry environment
-  if (isCloudFoundry) {
-    console.log('Using mock data for Cloud Foundry environment - Product ID:', productId);
+  // Use enhanced mock data with OPPS pricing (for both Cloud Foundry and local development)
+  if (isCloudFoundry || true) { // Always use enhanced products for now
+    console.log('Using enhanced mock data with OPPS pricing - Product ID:', productId);
     
-    const mockProducts = {
+    const baseMockProducts = {
       '118': {
         id: '118',
         ean: '9780201379631',
         description: 'RBO Flaschenöffner',
-        listPrice: 15.99,
         unit: 'PC',
         image: '/api/images/products/118.jpg',
         inStoreStock: 25,
@@ -742,7 +798,6 @@ app.get('/api/products/:id', async (req, res) => {
         id: '29',
         ean: '9999999999987',
         description: 'RBO pen',
-        listPrice: 3.50,
         unit: 'PC',
         image: '/api/images/products/29.jpg',
         inStoreStock: 120,
@@ -753,7 +808,6 @@ app.get('/api/products/:id', async (req, res) => {
         id: '32',
         ean: '7321232123811',
         description: 'RBO Notizbuch',
-        listPrice: 8.99,
         unit: 'PC',
         image: '/api/images/products/32.jpg',
         inStoreStock: 45,
@@ -764,7 +818,6 @@ app.get('/api/products/:id', async (req, res) => {
         id: '33',
         ean: '9999999999963',
         description: 'RBO Bag',
-        listPrice: 29.99,
         unit: 'PC',
         image: '/api/images/products/33.jpg',
         inStoreStock: 18,
@@ -775,20 +828,113 @@ app.get('/api/products/:id', async (req, res) => {
         id: '116',
         ean: '9780201379600',
         description: 'RBO Gas cylinder',
-        listPrice: 45.00,
         unit: 'PC',
         image: '/api/images/products/116.jpg',
         inStoreStock: 8,
         onlineStock: 20,
         isAvailable: true
+      },
+      '130': {
+        id: '130',
+        ean: '1234567890123',
+        description: 'RBO Special Item',
+        unit: 'PC',
+        image: '/api/images/products/130.jpg',
+        inStoreStock: 15,
+        onlineStock: 45,
+        isAvailable: true
+      },
+      '128': {
+        id: '128',
+        ean: '1234567890128',
+        description: 'RBO Test Item with Availability',
+        unit: 'PC',
+        image: '/api/images/products/128.jpg',
+        inStoreStock: 50,
+        onlineStock: 100,
+        isAvailable: true
       }
     };
     
-    const product = mockProducts[productId];
-    if (product) {
-      res.json(product);
-    } else {
+    const baseProduct = baseMockProducts[productId];
+    if (!baseProduct) {
       res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+    
+    try {
+      // Force refresh for individual product requests (real-time pricing and availability)
+      const refreshPrices = req.query.refresh === 'true' || req.query.force === 'true';
+      
+      console.log(`Fetching real-time data for product ${productId}`);
+      
+      // Get real pricing from OPPS for this product
+      const oppsPricing = await oppsService.getProductPricing(productId, { 
+        storeId: req.query.storeId || process.env.DEFAULT_STORE_ID,
+        forceRefresh: refreshPrices,
+        batchMode: false // Force individual real-time pricing
+      });
+      
+      // Get real availability from OMSA for this product
+      const omsaAvailability = await omsaService.getProductAvailabilityFromAPI(productId, {
+        forceRefresh: refreshPrices
+      });
+      
+      let enrichedProduct = { ...baseProduct };
+      
+      // Apply OPPS pricing if available
+      if (oppsPricing && oppsPricing[productId]) {
+        enrichedProduct = {
+          ...enrichedProduct,
+          listPrice: oppsPricing[productId].listPrice,
+          salePrice: oppsPricing[productId].salePrice,
+          currency: oppsPricing[productId].currency,
+          priceSource: 'OPPS-RealTime'
+        };
+        console.log(`Product ${productId}: Using OPPS real-time price €${oppsPricing[productId].listPrice}`);
+      } else {
+        // Fallback to default pricing
+        enrichedProduct = {
+          ...enrichedProduct,
+          listPrice: 19.99,
+          salePrice: 19.99,
+          currency: 'EUR',
+          priceSource: 'fallback'
+        };
+        console.log(`Product ${productId}: Using fallback price €19.99`);
+      }
+      
+      // Apply OMSA availability if available
+      if (omsaAvailability) {
+        enrichedProduct = {
+          ...enrichedProduct,
+          inStoreStock: omsaAvailability.inStoreStock,
+          onlineStock: omsaAvailability.onlineStock,
+          totalStock: omsaAvailability.totalStock,
+          isAvailable: omsaAvailability.isAvailable,
+          availabilityDetails: {
+            sites: omsaAvailability.sites,
+            source: omsaAvailability.source,
+            lastUpdated: omsaAvailability.lastUpdated
+          }
+        };
+        console.log(`Product ${productId}: Using ${omsaAvailability.source} availability - In Store: ${omsaAvailability.inStoreStock}, Online: ${omsaAvailability.onlineStock}`);
+      } else {
+        console.log(`Product ${productId}: Using base availability data`);
+      }
+      
+      res.json(enrichedProduct);
+    } catch (error) {
+      // Fallback pricing on error
+      const enrichedProduct = {
+        ...baseProduct,
+        listPrice: 19.99,
+        salePrice: 19.99,
+        currency: 'EUR',
+        priceSource: 'fallback-error'
+      };
+      console.log(`Product ${productId}: Error getting OPPS price, using fallback`);
+      res.json(enrichedProduct);
     }
     return;
   }

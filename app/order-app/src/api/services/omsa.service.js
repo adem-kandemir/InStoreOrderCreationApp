@@ -1,3 +1,4 @@
+const axios = require('axios');
 const authService = require('./auth.service');
 
 /**
@@ -7,6 +8,35 @@ const authService = require('./auth.service');
 class OmsaService {
   constructor() {
     this.systemName = 'OMSA';
+    this.authService = authService;
+    this.baseUrl = null;
+    this.tokenCache = new Map();
+    this.availabilityCache = new Map();
+    this.lastCacheUpdate = null;
+    this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
+    
+    // Site mapping for inventory availability
+    this.siteMapping = {
+      '1106': { type: 'store', name: 'Store 1106' },      // In-store location
+      '1107': { type: 'store', name: 'Store 1107' },      // In-store location  
+      '1108': { type: 'online', name: 'Online DC 1108' }  // Online distribution center
+    };
+    
+    this.initialize();
+  }
+
+  /**
+   * Initialize OMSA service with credentials
+   */
+  async initialize() {
+    try {
+      const credentials = this.authService.getSystemCredentials('OMSA');
+      this.baseUrl = credentials.baseUrl;
+      console.log('OMSA: Service initialized with base URL:', this.baseUrl);
+    } catch (error) {
+      console.error('OMSA: Failed to initialize service:', error.message);
+      console.log('OMSA: No availability data will be available');
+    }
   }
 
   /**
@@ -27,7 +57,7 @@ class OmsaService {
         requestedQuantity: options.quantity || 1
       };
 
-      const response = await authService.makeAuthenticatedRequest(
+      const response = await this.authService.makeAuthenticatedRequest(
         this.systemName,
         '/api/v1/availability/products',
         {
@@ -40,8 +70,25 @@ class OmsaService {
     } catch (error) {
       console.error('Error getting product availability:', error.message);
       
-      // Return fallback availability for development
-      return this.getFallbackAvailability(productIds);
+      // Return no availability data on error
+      const ids = Array.isArray(productIds) ? productIds : [productIds];
+      const noAvailabilityData = {};
+      
+      ids.forEach(id => {
+        noAvailabilityData[id] = {
+          productId: id,
+          isAvailable: false,
+          totalAvailable: 0,
+          inStoreStock: 0,
+          warehouseStock: 0,
+          source: 'OMSA-Error',
+          error: error.message,
+          lastUpdated: new Date().toISOString(),
+          hasData: false
+        };
+      });
+      
+      return noAvailabilityData;
     }
   }
 
@@ -63,7 +110,7 @@ class OmsaService {
         preferredSources: options.preferredSources || ['INSTORE', 'WAREHOUSE', 'SUPPLIER']
       };
 
-      const response = await authService.makeAuthenticatedRequest(
+      const response = await this.authService.makeAuthenticatedRequest(
         this.systemName,
         '/api/v1/sourcing/products',
         {
@@ -76,8 +123,23 @@ class OmsaService {
     } catch (error) {
       console.error('Error getting product sourcing:', error.message);
       
-      // Return fallback sourcing for development
-      return this.getFallbackSourcing(productIds);
+      // Return no sourcing data on error
+      const ids = Array.isArray(productIds) ? productIds : [productIds];
+      const noSourcingData = {};
+      
+      ids.forEach(id => {
+        noSourcingData[id] = {
+          productId: id,
+          sources: [],
+          recommendedSource: null,
+          estimatedFulfillment: null,
+          source: 'OMSA-Error',
+          error: error.message,
+          hasData: false
+        };
+      });
+      
+      return noSourcingData;
     }
   }
 
@@ -98,7 +160,7 @@ class OmsaService {
         includeReserved: options.includeReserved || false
       };
 
-      const response = await authService.makeAuthenticatedRequest(
+      const response = await this.authService.makeAuthenticatedRequest(
         this.systemName,
         '/api/v1/stock/products',
         {
@@ -111,8 +173,24 @@ class OmsaService {
     } catch (error) {
       console.error('Error getting stock levels:', error.message);
       
-      // Return fallback stock levels for development
-      return this.getFallbackStockLevels(productIds);
+      // Return no stock data on error
+      const ids = Array.isArray(productIds) ? productIds : [productIds];
+      const noStockData = {};
+      
+      ids.forEach(id => {
+        noStockData[id] = {
+          productId: id,
+          locations: [],
+          totalStock: 0,
+          availableStock: 0,
+          reservedStock: 0,
+          source: 'OMSA-Error',
+          error: error.message,
+          hasData: false
+        };
+      });
+      
+      return noStockData;
     }
   }
 
@@ -136,7 +214,7 @@ class OmsaService {
         sessionId: options.sessionId
       };
 
-      const response = await authService.makeAuthenticatedRequest(
+      const response = await this.authService.makeAuthenticatedRequest(
         this.systemName,
         '/api/v1/stock/reserve',
         {
@@ -149,8 +227,16 @@ class OmsaService {
     } catch (error) {
       console.error('Error reserving stock:', error.message);
       
-      // Return fallback reservation for development
-      return this.getFallbackReservation(reservations);
+      // Return failed reservation on error
+      return {
+        success: false,
+        reservations: [],
+        sessionId: null,
+        expiresAt: null,
+        source: 'OMSA-Error',
+        error: error.message,
+        hasData: false
+      };
     }
   }
 
@@ -167,7 +253,7 @@ class OmsaService {
         reservationIds: ids
       };
 
-      const response = await authService.makeAuthenticatedRequest(
+      const response = await this.authService.makeAuthenticatedRequest(
         this.systemName,
         '/api/v1/stock/release',
         {
@@ -365,6 +451,318 @@ class OmsaService {
       sessionId: `FALLBACK_SESSION_${Date.now()}`,
       expiresAt: new Date(Date.now() + 1800000).toISOString(), // 30 minutes
       source: 'fallback'
+    };
+  }
+
+  /**
+   * Get product availability from OMSA API
+   * @param {string} productId - Product ID
+   * @param {Object} options - Request options
+   * @returns {Promise<Object>} Availability data
+   */
+  async getProductAvailabilityFromAPI(productId, options = {}) {
+    try {
+      if (!this.baseUrl) {
+        console.log('OMSA: No base URL configured, no availability data available');
+        return {
+          productId: productId,
+          inStoreStock: 0,
+          onlineStock: 0,
+          totalStock: 0,
+          isAvailable: false,
+          sites: [],
+          source: 'OMSA-NotConfigured',
+          lastUpdated: new Date().toISOString(),
+          hasData: false
+        };
+      }
+
+      // Check cache first (unless force refresh)
+      if (!options.forceRefresh && this.availabilityCache.has(productId)) {
+        const cached = this.availabilityCache.get(productId);
+        if (cached.timestamp > Date.now() - this.cacheTimeout) {
+          console.log(`OMSA: Using cached availability for product ${productId}`);
+          return cached.data;
+        }
+      }
+
+      console.log(`OMSA: Fetching real-time availability for product ${productId}`);
+      
+      // Get access token
+      console.log(`OMSA: Attempting to get access token...`);
+      const token = await this.authService.getAccessToken('OMSA');
+      console.log(`OMSA: Access token obtained successfully`);
+      
+      // Prepare request body with correct OMSA API format
+      const requestBody = {
+        items: [
+          {
+            product: {
+              id: productId
+            },
+            unitOfMeasure: {
+              salesUnitCode: "ST"
+            }
+          }
+        ],
+        sites: [
+          {
+            id: "1107"
+          },
+          {
+            id: "1108"
+          },
+          {
+            id: "1106"
+          }
+        ]
+      };
+
+      // Make API call
+      console.log(`OMSA: Making API call to ${this.baseUrl}/v1/inventory/availableToSellBySite`);
+      console.log(`OMSA: Request body:`, JSON.stringify(requestBody, null, 2));
+      
+      const response = await axios.post(
+        `${this.baseUrl}/v1/inventory/availableToSellBySite`,
+        requestBody,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: 10000
+        }
+      );
+
+      console.log(`OMSA: Received availability response for product ${productId}`);
+      console.log(`OMSA: Response data:`, JSON.stringify(response.data, null, 2));
+      
+      // Transform response to our format
+      const availability = this.transformAvailabilityResponse(response.data, productId);
+      
+      // Cache the result
+      this.availabilityCache.set(productId, {
+        data: availability,
+        timestamp: Date.now()
+      });
+      
+      return availability;
+
+    } catch (error) {
+      console.error(`OMSA: Error fetching availability for product ${productId}:`, error.message);
+      
+      if (error.response) {
+        console.error('OMSA: Response status:', error.response.status);
+        console.error('OMSA: Response data:', error.response.data);
+      }
+      
+      // Return no availability data on error
+      console.log('OMSA: No availability data available due to error');
+      return {
+        productId: productId,
+        inStoreStock: 0,
+        onlineStock: 0,
+        totalStock: 0,
+        isAvailable: false,
+        sites: [],
+        source: 'OMSA-Error',
+        error: error.message,
+        lastUpdated: new Date().toISOString(),
+        hasData: false
+      };
+    }
+  }
+
+  /**
+   * Transform OMSA API response to our product format
+   * @param {Object} omsaResponse - Raw OMSA API response
+   * @param {string} productId - Product ID
+   * @returns {Object} Transformed availability data
+   */
+  transformAvailabilityResponse(omsaResponse, productId) {
+    try {
+      if (!omsaResponse.items || omsaResponse.items.length === 0) {
+        console.warn(`OMSA: No availability data found for product ${productId}`);
+        return {
+          productId: productId,
+          inStoreStock: 0,
+          onlineStock: 0,
+          totalStock: 0,
+          isAvailable: false,
+          sites: [],
+          source: 'OMSA-NoData',
+          lastUpdated: new Date().toISOString(),
+          hasData: false
+        };
+      }
+
+      const item = omsaResponse.items[0];
+      let inStoreStock = 0;
+      let onlineStock = 0;
+      const siteDetails = [];
+
+      if (item.quantityBySites) {
+        item.quantityBySites.forEach(siteData => {
+          const siteId = siteData.site.id;
+          const siteInfo = this.siteMapping[siteId];
+          
+          if (siteData.timelines && siteData.timelines.length > 0) {
+            const timeline = siteData.timelines[0]; // Use first timeline
+            const quantity = timeline.quantity || 0;
+            
+            siteDetails.push({
+              siteId: siteId,
+              siteName: siteInfo?.name || `Site ${siteId}`,
+              siteType: siteInfo?.type || 'unknown',
+              quantity: quantity,
+              availableFrom: timeline.availableFrom
+            });
+
+            // Aggregate quantities by type
+            if (siteInfo?.type === 'store') {
+              inStoreStock += quantity;
+            } else if (siteInfo?.type === 'online') {
+              onlineStock += quantity;
+            }
+          }
+        });
+      }
+
+      const result = {
+        productId: productId,
+        inStoreStock: inStoreStock,
+        onlineStock: onlineStock,
+        totalStock: inStoreStock + onlineStock,
+        isAvailable: (inStoreStock + onlineStock) > 0,
+        sites: siteDetails,
+        source: 'OMSA-RealTime',
+        lastUpdated: new Date().toISOString()
+      };
+
+      console.log(`OMSA: Product ${productId} availability - In Store: ${inStoreStock}, Online: ${onlineStock}`);
+      return result;
+
+    } catch (error) {
+      console.error('OMSA: Error transforming response:', error.message);
+      return {
+        productId: productId,
+        inStoreStock: 0,
+        onlineStock: 0,
+        totalStock: 0,
+        isAvailable: false,
+        sites: [],
+        source: 'OMSA-TransformError',
+        error: error.message,
+        lastUpdated: new Date().toISOString(),
+        hasData: false
+      };
+    }
+  }
+
+  /**
+   * Get fallback availability data with 3-site structure for development/testing
+   * @param {string} productId - Product ID
+   * @returns {Object} Mock availability data
+   */
+  getNewFallbackAvailability(productId) {
+    // Mock data based on the 3 sites with varying stock levels
+    const mockData = {
+      '29': { inStore: 120, online: 200 },
+      '32': { inStore: 45, online: 80 },
+      '118': { inStore: 25, online: 75 },
+      '123': { inStore: 15, online: 35 },
+      '116': { inStore: 8, online: 22 },
+      '130': { inStore: 60, online: 100 }
+    };
+
+    const stock = mockData[productId] || { inStore: 10, online: 25 };
+    
+    return {
+      productId: productId,
+      inStoreStock: stock.inStore,
+      onlineStock: stock.online,
+      totalStock: stock.inStore + stock.online,
+      isAvailable: (stock.inStore + stock.online) > 0,
+      sites: [
+        {
+          siteId: '1106',
+          siteName: 'Store 1106',
+          siteType: 'store',
+          quantity: Math.floor(stock.inStore * 0.6),
+          availableFrom: new Date().toISOString().split('T')[0]
+        },
+        {
+          siteId: '1107', 
+          siteName: 'Store 1107',
+          siteType: 'store',
+          quantity: Math.floor(stock.inStore * 0.4),
+          availableFrom: new Date().toISOString().split('T')[0]
+        },
+        {
+          siteId: '1108',
+          siteName: 'Online DC 1108',
+          siteType: 'online',
+          quantity: stock.online,
+          availableFrom: new Date().toISOString().split('T')[0]
+        }
+      ],
+      source: 'OMSA-Fallback',
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Batch fetch availability for multiple products
+   * @param {string[]} productIds - Array of product IDs
+   * @param {Object} options - Request options
+   * @returns {Promise<Object>} Map of productId to availability data
+   */
+  async getBatchAvailability(productIds, options = {}) {
+    const results = {};
+    
+    // For now, make individual calls
+    // TODO: Implement true batch API if OMSA supports it
+    for (const productId of productIds) {
+      try {
+        results[productId] = await this.getProductAvailabilityFromAPI(productId, options);
+      } catch (error) {
+        console.error(`OMSA: Failed to get availability for product ${productId}:`, error.message);
+        results[productId] = {
+          productId: productId,
+          inStoreStock: 0,
+          onlineStock: 0,
+          totalStock: 0,
+          isAvailable: false,
+          sites: [],
+          source: 'OMSA-BatchError',
+          error: error.message,
+          lastUpdated: new Date().toISOString(),
+          hasData: false
+        };
+      }
+    }
+    
+    return results;
+  }
+
+  /**
+   * Clear availability cache
+   */
+  clearCache() {
+    this.availabilityCache.clear();
+    console.log('OMSA: Availability cache cleared');
+  }
+
+  /**
+   * Get cache statistics
+   * @returns {Object} Cache statistics
+   */
+  getCacheStats() {
+    return {
+      cacheSize: this.availabilityCache.size,
+      lastUpdate: this.lastCacheUpdate,
+      cacheTimeout: this.cacheTimeout
     };
   }
 }

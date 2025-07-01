@@ -21,6 +21,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   searchQuery = '';
   searchResults: Product[] = [];
   isSearching = false;
+  isRefreshingPrices = false;
   selectedProduct: Product | null = null;
   cart$: Observable<Cart>;
   
@@ -120,12 +121,81 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     }
   }
 
+  refreshPrices(): void {
+    if (this.isRefreshingPrices) return;
+    
+    this.isRefreshingPrices = true;
+    
+    // If we have a selected product, refresh it with full details (including OMSA data)
+    if (this.selectedProduct) {
+      this.productService.getProductById(this.selectedProduct.id, { refresh: true }).subscribe({
+        next: (freshProduct) => {
+          if (freshProduct && this.selectedProduct?.id === freshProduct.id) {
+            // Update the selected product with fresh data including OMSA availability
+            this.selectedProduct = freshProduct;
+            
+            // Also update the product in search results if it exists there
+            const searchIndex = this.searchResults.findIndex(p => p.id === freshProduct.id);
+            if (searchIndex !== -1) {
+              this.searchResults[searchIndex] = { ...this.searchResults[searchIndex], ...freshProduct };
+            }
+          }
+          this.isRefreshingPrices = false;
+        },
+        error: () => {
+          this.isRefreshingPrices = false;
+        }
+      });
+    } else {
+      // If no selected product, refresh the search results
+      const currentQuery = this.searchQuery.trim();
+      
+      if (currentQuery.length > 0) {
+        // Refresh the current search results
+        this.productService.searchProducts(currentQuery, { refresh: true }).subscribe({
+          next: (result: ProductSearchResult) => {
+            this.searchResults = result.products;
+            this.isRefreshingPrices = false;
+          },
+          error: () => {
+            this.isRefreshingPrices = false;
+          }
+        });
+      } else {
+        // If no search query, refresh all products
+        this.productService.searchProducts('', { refresh: true }).subscribe({
+          next: (result: ProductSearchResult) => {
+            this.searchResults = result.products;
+            this.isRefreshingPrices = false;
+          },
+          error: () => {
+            this.isRefreshingPrices = false;
+          }
+        });
+      }
+    }
+  }
+
   selectProduct(product: Product): void {
     this.selectedProduct = product;
     // Reset image state when selecting a product
     if (!this.imageLoadedState.has(product.id)) {
       this.imageLoadedState.set(product.id, false);
     }
+    
+    // Fetch fresh pricing for the selected product
+    this.productService.getProductById(product.id, { refresh: true }).subscribe({
+      next: (freshProduct) => {
+        if (freshProduct && this.selectedProduct?.id === product.id) {
+          // Update the selected product with fresh pricing
+          this.selectedProduct = { ...this.selectedProduct, ...freshProduct };
+        }
+      },
+      error: (error) => {
+        console.log('Could not fetch fresh pricing for product:', error);
+        // Keep the existing product data on error
+      }
+    });
   }
 
   addToCart(product: Product): void {

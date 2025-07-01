@@ -12,8 +12,18 @@ export class ProductService {
 
   constructor(private http: HttpClient) {}
 
-  searchProducts(query: string): Observable<ProductSearchResult> {
-    const url = `${this.apiUrl}/products${query ? '?search=' + encodeURIComponent(query) : ''}`;
+  searchProducts(query: string, options?: { refresh?: boolean }): Observable<ProductSearchResult> {
+    const params = new URLSearchParams();
+    
+    if (query) {
+      params.append('search', query);
+    }
+    
+    if (options?.refresh) {
+      params.append('refresh', 'true');
+    }
+    
+    const url = `${this.apiUrl}/products${params.toString() ? '?' + params.toString() : ''}`;
     
     return this.http.get<ProductSearchResult>(url).pipe(
       catchError(error => {
@@ -27,12 +37,40 @@ export class ProductService {
     );
   }
 
-  getProductById(id: string): Observable<Product | null> {
-    const url = `${this.apiUrl}/products/${encodeURIComponent(id)}`;
+  getProductById(id: string, options?: { refresh?: boolean }): Observable<Product | null> {
+    const params = new URLSearchParams();
+    
+    if (options?.refresh) {
+      params.append('refresh', 'true');
+    }
+    
+    const url = `${this.apiUrl}/products/${encodeURIComponent(id)}${params.toString() ? '?' + params.toString() : ''}`;
+    
+    console.log(`Fetching product ${id} with availability and pricing...`);
     
     return this.http.get<Product>(url).pipe(
       catchError(error => {
         console.error('Error fetching product:', error);
+        return of(null);
+      })
+    );
+  }
+
+  /**
+   * Get product availability from OMSA
+   */
+  getProductAvailability(id: string, options?: { refresh?: boolean }): Observable<any> {
+    const params = new URLSearchParams();
+    
+    if (options?.refresh) {
+      params.append('refresh', 'true');
+    }
+    
+    const url = `${this.apiUrl}/availability/${encodeURIComponent(id)}${params.toString() ? '?' + params.toString() : ''}`;
+    
+    return this.http.get<any>(url).pipe(
+      catchError(error => {
+        console.error('Error fetching product availability:', error);
         return of(null);
       })
     );
