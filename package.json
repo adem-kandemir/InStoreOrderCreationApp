@@ -7,8 +7,9 @@
   "private": true,
   "dependencies": {
     "@sap/cds": "^8",
-    "express": "^4",
-    "@sap/xssec": "^4"
+    "@sap/xssec": "^4",
+    "axios": "^1.10.0",
+    "express": "^4"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",

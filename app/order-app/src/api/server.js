@@ -218,24 +218,252 @@ async function fetchProductDescriptions(productIds, config) {
   }
 }
 
+// Import system services
+const oppsService = require('./services/opps.service');
+const omsaService = require('./services/omsa.service');
+const omfService = require('./services/omf.service');
+
+// Enhanced product transformation with OPPS pricing
+async function transformProductWithPricing(s4Product, description = '', storeId = null) {
+  const productId = s4Product.Product;
+  
+  // Get real pricing from OPPS
+  let pricing = { listPrice: 19.99, salePrice: 19.99, currency: 'EUR' }; // Default fallback
+  
+  try {
+    const oppsPricing = await oppsService.getProductPricing(productId, { storeId });
+    if (oppsPricing && oppsPricing[productId]) {
+      pricing = {
+        listPrice: oppsPricing[productId].listPrice,
+        salePrice: oppsPricing[productId].salePrice,
+        currency: oppsPricing[productId].currency
+      };
+    }
+  } catch (error) {
+    console.log(`Using fallback pricing for product ${productId}`);
+  }
+
+  return {
+    id: productId,
+    ean: s4Product.ProductStandardID || '',
+    description: description || `Product ${productId}`,
+    listPrice: pricing.listPrice,
+    salePrice: pricing.salePrice,
+    currency: pricing.currency,
+    unit: s4Product.BaseUnit || 'EA',
+    image: `/api/images/products/${productId}.jpg`,
+    inStoreStock: Math.floor(Math.random() * 100), // Mock data for now
+    onlineStock: Math.floor(Math.random() * 100), // Mock data for now
+    isAvailable: true
+  };
+}
+
 // API endpoints
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: isCloudFoundry ? 'Cloud Foundry' : 'Local Development',
+    services: {
+      opps: process.env.OPPS_BASE_URL ? 'configured' : 'fallback',
+      omsa: process.env.OMSA_BASE_URL ? 'configured' : 'fallback',
+      omf: process.env.OMF_BASE_URL ? 'configured' : 'fallback'
+    }
+  });
+});
+
+// OPPS Service Endpoints - Pricing and Promotions
+app.get('/api/pricing/:productId', async (req, res) => {
+  try {
+    const pricing = await oppsService.getProductPricing(req.params.productId);
+    res.json(pricing);
+  } catch (error) {
+    console.error('Error getting pricing:', error.message);
+    res.status(500).json({ error: 'Failed to get pricing information' });
+  }
+});
+
+app.post('/api/pricing/batch', async (req, res) => {
+  try {
+    const { productIds, options } = req.body;
+    const pricing = await oppsService.getProductPricing(productIds, options);
+    res.json(pricing);
+  } catch (error) {
+    console.error('Error getting batch pricing:', error.message);
+    res.status(500).json({ error: 'Failed to get pricing information' });
+  }
+});
+
+app.get('/api/promotions/:productId', async (req, res) => {
+  try {
+    const promotions = await oppsService.getProductPromotions(req.params.productId);
+    res.json(promotions);
+  } catch (error) {
+    console.error('Error getting promotions:', error.message);
+    res.status(500).json({ error: 'Failed to get promotion information' });
+  }
+});
+
+app.post('/api/pricing-promotions/batch', async (req, res) => {
+  try {
+    const { productIds, options } = req.body;
+    const data = await oppsService.getPriceAndPromotions(productIds, options);
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting pricing and promotions:', error.message);
+    res.status(500).json({ error: 'Failed to get pricing and promotion information' });
+  }
+});
+
+// OMSA Service Endpoints - Sourcing and Availability
+app.get('/api/availability/:productId', async (req, res) => {
+  try {
+    const availability = await omsaService.getProductAvailability(req.params.productId, req.query);
+    res.json(availability);
+  } catch (error) {
+    console.error('Error getting availability:', error.message);
+    res.status(500).json({ error: 'Failed to get availability information' });
+  }
+});
+
+app.post('/api/availability/batch', async (req, res) => {
+  try {
+    const { productIds, options } = req.body;
+    const availability = await omsaService.getProductAvailability(productIds, options);
+    res.json(availability);
+  } catch (error) {
+    console.error('Error getting batch availability:', error.message);
+    res.status(500).json({ error: 'Failed to get availability information' });
+  }
+});
+
+app.get('/api/sourcing/:productId', async (req, res) => {
+  try {
+    const sourcing = await omsaService.getProductSourcing(req.params.productId, req.query);
+    res.json(sourcing);
+  } catch (error) {
+    console.error('Error getting sourcing:', error.message);
+    res.status(500).json({ error: 'Failed to get sourcing information' });
+  }
+});
+
+app.get('/api/stock/:productId', async (req, res) => {
+  try {
+    const stock = await omsaService.getStockLevels(req.params.productId, req.query);
+    res.json(stock);
+  } catch (error) {
+    console.error('Error getting stock levels:', error.message);
+    res.status(500).json({ error: 'Failed to get stock information' });
+  }
+});
+
+app.post('/api/stock/reserve', async (req, res) => {
+  try {
+    const { reservations, options } = req.body;
+    const result = await omsaService.reserveStock(reservations, options);
+    res.json(result);
+  } catch (error) {
+    console.error('Error reserving stock:', error.message);
+    res.status(500).json({ error: 'Failed to reserve stock' });
+  }
+});
+
+app.post('/api/stock/release', async (req, res) => {
+  try {
+    const { reservationIds } = req.body;
+    const result = await omsaService.releaseStockReservation(reservationIds);
+    res.json(result);
+  } catch (error) {
+    console.error('Error releasing stock reservation:', error.message);
+    res.status(500).json({ error: 'Failed to release stock reservation' });
+  }
+});
+
+// OMF Service Endpoints - Order Management and Fulfillment
+app.post('/api/orders', async (req, res) => {
+  try {
+    const order = await omfService.createOrder(req.body);
+    res.status(201).json(order);
+  } catch (error) {
+    console.error('Error creating order:', error.message);
+    res.status(500).json({ error: 'Failed to create order' });
+  }
+});
+
+app.get('/api/orders/:orderId', async (req, res) => {
+  try {
+    const order = await omfService.getOrder(req.params.orderId);
+    res.json(order);
+  } catch (error) {
+    console.error('Error getting order:', error.message);
+    res.status(500).json({ error: 'Failed to get order' });
+  }
+});
+
+app.put('/api/orders/:orderId/status', async (req, res) => {
+  try {
+    const { status, reason, notes } = req.body;
+    const order = await omfService.updateOrderStatus(req.params.orderId, status, { reason, notes });
+    res.json(order);
+  } catch (error) {
+    console.error('Error updating order status:', error.message);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+app.post('/api/orders/:orderId/cancel', async (req, res) => {
+  try {
+    const result = await omfService.cancelOrder(req.params.orderId, req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error cancelling order:', error.message);
+    res.status(500).json({ error: 'Failed to cancel order' });
+  }
+});
+
+app.get('/api/orders/:orderId/fulfillment', async (req, res) => {
+  try {
+    const fulfillment = await omfService.getOrderFulfillment(req.params.orderId);
+    res.json(fulfillment);
+  } catch (error) {
+    console.error('Error getting order fulfillment:', error.message);
+    res.status(500).json({ error: 'Failed to get order fulfillment' });
+  }
+});
+
+app.post('/api/orders/:orderId/payment', async (req, res) => {
+  try {
+    const payment = await omfService.processPayment(req.params.orderId, req.body);
+    res.json(payment);
+  } catch (error) {
+    console.error('Error processing payment:', error.message);
+    res.status(500).json({ error: 'Failed to process payment' });
+  }
+});
+
+app.get('/api/orders', async (req, res) => {
+  try {
+    const orders = await omfService.searchOrders(req.query);
+    res.json(orders);
+  } catch (error) {
+    console.error('Error searching orders:', error.message);
+    res.status(500).json({ error: 'Failed to search orders' });
+  }
 });
 
 app.get('/api/products', async (req, res) => {
   const searchQuery = req.query.search || '';
   
-  // Use mock data for Cloud Foundry environment
-  if (isCloudFoundry) {
-    console.log('Using mock data for Cloud Foundry environment');
+  // Use enhanced mock data with OPPS pricing (for both Cloud Foundry and local development)
+  if (isCloudFoundry || true) { // Always use enhanced products for now
+    console.log('Using enhanced mock data with OPPS pricing integration');
     
-    const mockProducts = [
+    // Enhanced mock products with OPPS pricing integration
+    const baseMockProducts = [
       {
         id: '118',
         ean: '9780201379631',
         description: 'RBO Flaschenöffner',
-        listPrice: 15.99,
         unit: 'PC',
         image: '/api/images/products/118.jpg',
         inStoreStock: 25,
@@ -246,7 +474,6 @@ app.get('/api/products', async (req, res) => {
         id: '29',
         ean: '9999999999987',
         description: 'RBO pen',
-        listPrice: 3.50,
         unit: 'PC',
         image: '/api/images/products/29.jpg',
         inStoreStock: 120,
@@ -257,7 +484,6 @@ app.get('/api/products', async (req, res) => {
         id: '32',
         ean: '7321232123811',
         description: 'RBO Notizbuch',
-        listPrice: 8.99,
         unit: 'PC',
         image: '/api/images/products/32.jpg',
         inStoreStock: 45,
@@ -268,7 +494,6 @@ app.get('/api/products', async (req, res) => {
         id: '33',
         ean: '9999999999963',
         description: 'RBO Bag',
-        listPrice: 29.99,
         unit: 'PC',
         image: '/api/images/products/33.jpg',
         inStoreStock: 18,
@@ -279,14 +504,66 @@ app.get('/api/products', async (req, res) => {
         id: '116',
         ean: '9780201379600',
         description: 'RBO Gas cylinder',
-        listPrice: 45.00,
         unit: 'PC',
         image: '/api/images/products/116.jpg',
         inStoreStock: 8,
         onlineStock: 20,
         isAvailable: true
+      },
+      {
+        id: '130',
+        ean: '1234567890123',
+        description: 'RBO Special Item',
+        unit: 'PC',
+        image: '/api/images/products/130.jpg',
+        inStoreStock: 15,
+        onlineStock: 45,
+        isAvailable: true
       }
     ];
+
+    // Enrich mock products with real OPPS pricing
+    const mockProducts = [];
+    for (const product of baseMockProducts) {
+      try {
+        // Get real pricing from OPPS for this product
+        const oppsPricing = await oppsService.getProductPricing(product.id, { 
+          storeId: req.query.storeId || process.env.DEFAULT_STORE_ID 
+        });
+        
+        if (oppsPricing && oppsPricing[product.id]) {
+          // Use real OPPS pricing
+          mockProducts.push({
+            ...product,
+            listPrice: oppsPricing[product.id].listPrice,
+            salePrice: oppsPricing[product.id].salePrice,
+            currency: oppsPricing[product.id].currency,
+            priceSource: 'OPPS'
+          });
+          console.log(`Product ${product.id}: Using OPPS price €${oppsPricing[product.id].listPrice}`);
+        } else {
+          // Fallback to default pricing
+          mockProducts.push({
+            ...product,
+            listPrice: 19.99,
+            salePrice: 19.99,
+            currency: 'EUR',
+            priceSource: 'fallback'
+          });
+          console.log(`Product ${product.id}: Using fallback price €19.99`);
+        }
+      } catch (error) {
+        // Fallback pricing on error
+        mockProducts.push({
+          ...product,
+          listPrice: 19.99,
+          salePrice: 19.99,
+          currency: 'EUR',
+          priceSource: 'fallback-error'
+        });
+        console.log(`Product ${product.id}: Error getting OPPS price, using fallback`);
+      }
+    }
     
     // Filter products based on search query
     let filtered = searchQuery 
