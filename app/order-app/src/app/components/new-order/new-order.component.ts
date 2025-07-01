@@ -1,7 +1,9 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 import { ProductService } from '../../services/product.service';
 import { CartService } from '../../services/cart.service';
@@ -50,6 +52,8 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   
   orderConfirmation: string | null = null;
   orderError = false;
+  orderErrorMessage: string | null = null;
+  orderErrorDetails: string | null = null;
   
   // Barcode scanner properties
   isScanningBarcode = false;
@@ -60,7 +64,8 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     private productService: ProductService,
     private cartService: CartService,
     private localizationService: LocalizationService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private http: HttpClient
   ) {
     this.cart$ = this.cartService.cart$;
     this.sourcing$ = this.cartService.sourcing$;
@@ -255,51 +260,87 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
-  placeOrder(): void {
+  async placeOrder(): Promise<void> {
     if (!this.customerForm.valid) {
       return;
     }
 
-    const cart = this.cartService.getCurrentCart();
-    const customerDetails: CustomerDetails = {
-      firstName: this.customerForm.value.firstName,
-      lastName: this.customerForm.value.lastName,
-      email: this.customerForm.value.email,
-      phone: this.customerForm.value.phone,
-      address: {
-        line1: this.customerForm.value.addressLine1,
-        line2: this.customerForm.value.addressLine2,
-        zipCode: this.customerForm.value.zipCode,
-        city: this.customerForm.value.city,
-        country: this.customerForm.value.country
-      }
-    };
+    try {
+      console.log('Placing order with OMF...');
+      
+      const cart = this.cartService.getCurrentCart();
+      const customerDetails: CustomerDetails = {
+        firstName: this.customerForm.value.firstName,
+        lastName: this.customerForm.value.lastName,
+        email: this.customerForm.value.email,
+        phone: this.customerForm.value.phone,
+        address: {
+          line1: this.customerForm.value.addressLine1,
+          line2: this.customerForm.value.addressLine2,
+          zipCode: this.customerForm.value.zipCode,
+          city: this.customerForm.value.city,
+          country: this.customerForm.value.country
+        }
+      };
 
-    const order: Order = {
-      items: cart.items,
-      customer: customerDetails,
-      shipping: this.selectedShipping,
-      payment: this.selectedPayment,
-      totalPrice: cart.totalPrice,
-      discount: cart.discount,
-      shippingCost: this.selectedShipping.price,
-      finalTotal: cart.finalTotal + this.selectedShipping.price,
-      status: 'pending',
-      createdAt: new Date()
-    };
+      // Build complete order data for OMF API
+      const orderData = {
+        items: cart.items,
+        customer: customerDetails,
+        shipping: this.selectedShipping,
+        payment: this.selectedPayment,
+        totalPrice: cart.totalPrice,
+        discount: cart.discount,
+        finalTotal: cart.finalTotal + this.selectedShipping.price,
+        
+        // Additional metadata
+        channel: 'IN_STORE',
+        orderType: 'SALES_ORDER',
+        currency: 'EUR',
+        createdAt: new Date().toISOString()
+      };
 
-    // Simulate order processing
-    setTimeout(() => {
-      const success = Math.random() > 0.2; // 80% success rate
-      if (success) {
-        this.orderConfirmation = '1234568';
+      console.log('Order data being sent:', orderData);
+
+      // Call the backend API to create the order
+      const response = await this.http.post<any>(`${environment.apiUrl}/orders`, orderData).toPromise();
+      
+      console.log('Order creation response:', response);
+
+      if (response && response.success) {
+        // Order created successfully
+        this.orderConfirmation = response.order.externalNumber || response.order.orderNumber || response.order.orderId;
         this.currentStep = 'success';
         this.cartService.clearCart();
+        
+        console.log('Order created successfully with confirmation:', this.orderConfirmation);
       } else {
+        // Order creation failed - server returned error response
+        console.error('Order creation failed:', response);
         this.orderError = true;
+        this.orderErrorMessage = response.message || response.error || 'Order creation failed';
+        this.orderErrorDetails = response.details ? JSON.stringify(response.details, null, 2) : null;
         this.currentStep = 'error';
       }
-    }, 2000);
+
+    } catch (error: any) {
+      console.error('Error placing order:', error);
+      this.orderError = true;
+      
+      // Handle HTTP error responses
+      if (error.error && error.error.message) {
+        this.orderErrorMessage = error.error.message;
+        this.orderErrorDetails = error.error.details ? JSON.stringify(error.error.details, null, 2) : null;
+      } else if (error.message) {
+        this.orderErrorMessage = error.message;
+        this.orderErrorDetails = null;
+      } else {
+        this.orderErrorMessage = 'An unexpected error occurred while placing the order';
+        this.orderErrorDetails = null;
+      }
+      
+      this.currentStep = 'error';
+    }
   }
 
   startNewOrder(): void {
@@ -308,6 +349,8 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     this.selectedProduct = null;
     this.orderConfirmation = null;
     this.orderError = false;
+    this.orderErrorMessage = null;
+    this.orderErrorDetails = null;
     this.customerForm.reset();
   }
 

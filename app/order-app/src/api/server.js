@@ -420,11 +420,66 @@ app.post('/api/stock/release', async (req, res) => {
 // OMF Service Endpoints - Order Management and Fulfillment
 app.post('/api/orders', async (req, res) => {
   try {
-    const order = await omfService.createOrder(req.body);
-    res.status(201).json(order);
+    console.log('Server: Processing order creation request');
+    console.log('Server: Order data received:', JSON.stringify(req.body, null, 2));
+    
+    const orderData = req.body;
+    
+    // Validate required fields
+    if (!orderData.items || orderData.items.length === 0) {
+      return res.status(400).json({ 
+        error: 'Order must contain at least one item',
+        code: 'INVALID_ORDER_DATA'
+      });
+    }
+    
+    if (!orderData.customer) {
+      return res.status(400).json({ 
+        error: 'Customer information is required',
+        code: 'MISSING_CUSTOMER_DATA'
+      });
+    }
+    
+    // Get cached sourcing data from OMSA
+    let sourcingData = null;
+    try {
+      sourcingData = omsaService.getCachedSourcing();
+      console.log('Server: Sourcing data:', sourcingData ? 'Available' : 'Not cached');
+    } catch (error) {
+      console.warn('Server: Could not retrieve sourcing data:', error.message);
+    }
+    
+    // Create order using OMF service with sourcing data
+    const createdOrder = await omfService.createOrder(orderData, sourcingData);
+    
+    console.log('Server: Order created successfully:', createdOrder.externalNumber || createdOrder.orderId);
+    
+    // Return success response
+    res.status(201).json({
+      success: true,
+      order: createdOrder,
+      message: 'Order created successfully'
+    });
+    
   } catch (error) {
-    console.error('Error creating order:', error.message);
-    res.status(500).json({ error: 'Failed to create order' });
+    console.error('Server: Error creating order:', error.message);
+    
+    // Determine appropriate HTTP status code
+    let statusCode = 500;
+    if (error.status) {
+      statusCode = error.status;
+    } else if (error.code === 'INVALID_ORDER_DATA') {
+      statusCode = 400;
+    }
+    
+    // Return detailed error response with no fallback
+    res.status(statusCode).json({ 
+      success: false,
+      error: 'Order creation failed',
+      message: error.message,
+      code: error.code || 'ORDER_CREATION_FAILED',
+      details: error.details || null
+    });
   }
 });
 

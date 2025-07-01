@@ -506,9 +506,26 @@ npm<div class="new-order-container">
           <path d="M12 8v4m0 4h.01" stroke="#f44336" stroke-width="2"/>
         </svg>
       </div>
-      <h2>Something went wrong and the order was not placed successfully :(</h2>
-      <p>Please try again or contact your IT administrator.</p>
-      <button class="new-order-btn" (click)="startNewOrder()">New Order</button>
+      <h2>Order Creation Failed</h2>
+      
+      <!-- Error message -->
+      <div class="error-message" *ngIf="orderErrorMessage">
+        <h3>Error Details:</h3>
+        <p><strong>{{ orderErrorMessage }}</strong></p>
+      </div>
+      
+      <!-- Technical details (if available) -->
+      <div class="error-details" *ngIf="orderErrorDetails">
+        <details>
+          <summary>Technical Details (for IT support)</summary>
+          <pre>{{ orderErrorDetails }}</pre>
+        </details>
+      </div>
+      
+      <div class="error-actions">
+        <p>Please try again or contact your IT administrator if the problem persists.</p>
+        <button class="new-order-btn" (click)="startNewOrder()">Try Again</button>
+      </div>
     </div>
   </div>
 </div> 

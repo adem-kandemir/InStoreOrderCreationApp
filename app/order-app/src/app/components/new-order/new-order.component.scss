@@ -1165,7 +1165,7 @@
   text-align: center;
   
   .success-content, .error-content {
-    max-width: 400px;
+    max-width: 600px;
     margin: 0 auto;
     
     .success-icon, .error-icon {
@@ -1183,6 +1183,73 @@
       margin: 0 0 24px 0;
       color: #666;
       line-height: 1.5;
+    }
+    
+    .error-message {
+      background-color: #fee;
+      border: 1px solid #fcc;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      text-align: left;
+
+      h3 {
+        color: #c53030;
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      p {
+        margin: 0;
+        color: #c53030;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+    }
+
+    .error-details {
+      margin-bottom: 2rem;
+      text-align: left;
+
+      details {
+        background-color: #f7f7f7;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.5rem;
+
+        summary {
+          cursor: pointer;
+          font-weight: 500;
+          color: #666;
+          padding: 0.5rem;
+          
+          &:hover {
+            background-color: #eee;
+          }
+        }
+
+        pre {
+          background-color: #f5f5f5;
+          border: 1px solid #ddd;
+          border-radius: 3px;
+          padding: 1rem;
+          margin: 0.5rem 0 0 0;
+          overflow-x: auto;
+          font-size: 0.85rem;
+          color: #333;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+      }
+    }
+
+    .error-actions {
+      p {
+        color: #666;
+        margin-bottom: 1.5rem;
+        font-size: 1rem;
+      }
     }
     
     .new-order-btn {
