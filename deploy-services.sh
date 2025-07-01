@@ -156,22 +156,20 @@ else
     OMSA_SUCCESS=false
 fi
 
-# OMF Credentials (Order Management and Fulfillment) - Placeholder  
+# OMF Credentials (Order Management and Fulfillment) - Now Active!
 write_info "🔧 Deploying OMF credentials..."
 OMF_CREDENTIALS='{
-  "client_id": "((omf-client-id))",
-  "client_secret": "((omf-client-secret))",
-  "token_url": "((omf-token-url))",
-  "base_url": "((omf-base-url))"
+  "client_id": "sb-8dc23f9d-8457-4052-a3a6-651e06c29df4!b59628|dom!b7501",
+  "client_secret": "bcad55e1-d072-4de4-b122-4755e14e851b$51RI549HpGAYJ2eFtmtgwrZw695NqfvJK_tukcfeXBM=",
+  "token_url": "https://rbos-showcase-zzai01ti.authentication.eu20.hana.ondemand.com/oauth/token",
+  "base_url": "https://c4h-order.cfapps.eu20.hana.ondemand.com"
 }'
 
-write_warning "OMF credentials are placeholders. Update with actual values before deployment."
-# Uncomment the next lines when you have real OMF credentials
-# if deploy_user_provided_service "omf-credentials" "$OMF_CREDENTIALS" "OMF (Order Management and Fulfillment) credentials"; then
-#     OMF_SUCCESS=true
-# else
-#     OMF_SUCCESS=false
-# fi
+if deploy_user_provided_service "omf-credentials" "$OMF_CREDENTIALS" "OMF (Order Management and Fulfillment) credentials"; then
+    OMF_SUCCESS=true
+else
+    OMF_SUCCESS=false
+fi
 
 # Summary
 write_info "📋 Deployment Summary:"
@@ -186,7 +184,12 @@ if [ "$OMSA_SUCCESS" = true ]; then
 else
     write_error "OMSA credentials: ❌ Failed"
 fi
-write_warning "OMF credentials: ⏸️  Skipped (placeholders)"
+
+if [ "$OMF_SUCCESS" = true ]; then
+    write_success "OMF credentials: ✅ Deployed"
+else
+    write_error "OMF credentials: ❌ Failed"
+fi
 
 # List created services
 write_info "📋 Current user-provided services:"

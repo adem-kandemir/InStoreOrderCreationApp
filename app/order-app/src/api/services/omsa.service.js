@@ -21,10 +21,10 @@ class OmsaService {
     
     // Site mapping for inventory availability
     this.siteMapping = {
-      '1100': { type: 'store', name: 'Online DC 1108' },    
+      '1100': { type: 'online', name: 'Online Store 1100' },    // Online distribution center
       '1106': { type: 'store', name: 'Store 1106' },    // In-store location
       '1107': { type: 'store', name: 'Store 1107' },      // In-store location  
-      '1108': { type: 'online', name: 'Store 1108' }  // Online distribution center
+      '1108': { type: 'store', name: 'Store 1108' }  // In-store location
     };
     
     this.initialize();
@@ -694,24 +694,31 @@ class OmsaService {
       isAvailable: (stock.inStore + stock.online) > 0,
       sites: [
         {
+          siteId: '1100',
+          siteName: 'Online Store 1100',
+          siteType: 'online',
+          quantity: stock.online,
+          availableFrom: new Date().toISOString().split('T')[0]
+        },
+        {
           siteId: '1106',
           siteName: 'Store 1106',
           siteType: 'store',
-          quantity: Math.floor(stock.inStore * 0.6),
+          quantity: Math.floor(stock.inStore * 0.4),
           availableFrom: new Date().toISOString().split('T')[0]
         },
         {
           siteId: '1107', 
           siteName: 'Store 1107',
           siteType: 'store',
-          quantity: Math.floor(stock.inStore * 0.4),
+          quantity: Math.floor(stock.inStore * 0.3),
           availableFrom: new Date().toISOString().split('T')[0]
         },
         {
           siteId: '1108',
-          siteName: 'Online DC 1108',
-          siteType: 'online',
-          quantity: stock.online,
+          siteName: 'Store 1108',
+          siteType: 'store',
+          quantity: Math.floor(stock.inStore * 0.3),
           availableFrom: new Date().toISOString().split('T')[0]
         }
       ],

@@ -119,6 +119,32 @@ class AuthService {
       }
     }
     
+    if (system === 'OMF') {
+      // Read OMF credentials from VCAP_SERVICES (bound service)
+      try {
+        const vcapServices = JSON.parse(process.env.VCAP_SERVICES || '{}');
+        const omfService = vcapServices['user-provided']?.find(service => 
+          service.name === 'omf-credentials'
+        );
+        
+        if (omfService && omfService.credentials) {
+          const creds = omfService.credentials;
+          return {
+            clientId: creds.client_id,
+            clientSecret: creds.client_secret,
+            tokenUrl: creds.token_url,
+            baseUrl: creds.base_url
+          };
+        }
+        
+        // Fallback to environment variables if VCAP_SERVICES not found
+        console.log('OMF: VCAP_SERVICES not found, falling back to environment variables');
+      } catch (error) {
+        console.error('OMF: Error parsing VCAP_SERVICES:', error.message);
+        console.log('OMF: Falling back to environment variables');
+      }
+    }
+    
     // Original logic for OMSA, OMF and fallback for OPPS
     const systemUpper = system.toUpperCase();
     

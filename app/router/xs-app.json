@@ -9,8 +9,7 @@
       "source": "^/api/(.*)$",
       "target": "/api/$1",
       "destination": "api-backend",
-      "authenticationType": "xsuaa",
-      "scope": "$XSAPPNAME.OrderViewer"
+      "authenticationType": "none"
     },
     {
       "source": "^/user-api/currentUser$",

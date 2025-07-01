@@ -60,6 +60,7 @@ modules:
       - name: InStoreOrderCreationApp-destination
       - name: opps-credentials
       - name: omsa-credentials
+      - name: omf-credentials
     provides:
       - name: api-backend-app
         properties:
@@ -85,4 +86,6 @@ resources:
   - name: opps-credentials
     type: org.cloudfoundry.existing-service
   - name: omsa-credentials
+    type: org.cloudfoundry.existing-service
+  - name: omf-credentials
     type: org.cloudfoundry.existing-service

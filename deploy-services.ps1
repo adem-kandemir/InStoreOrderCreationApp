@@ -125,18 +125,16 @@ $omsaCredentials = @{
 
 $omsaSuccess = Deploy-UserProvidedService -ServiceName "omsa-credentials" -Credentials $omsaCredentials -Description "OMSA (Sourcing and Availability Service) credentials"
 
-# OMF Credentials (Order Management and Fulfillment) - Placeholder  
+# OMF Credentials (Order Management and Fulfillment) - Now Active!
 Write-Info "🔧 Deploying OMF credentials..."
 $omfCredentials = @{
-    client_id = "((omf-client-id))"
-    client_secret = "((omf-client-secret))"
-    token_url = "((omf-token-url))"
-    base_url = "((omf-base-url))"
+    client_id = "sb-8dc23f9d-8457-4052-a3a6-651e06c29df4!b59628|dom!b7501"
+    client_secret = "bcad55e1-d072-4de4-b122-4755e14e851b`$51RI549HpGAYJ2eFtmtgwrZw695NqfvJK_tukcfeXBM="
+    token_url = "https://rbos-showcase-zzai01ti.authentication.eu20.hana.ondemand.com/oauth/token"
+    base_url = "https://c4h-order.cfapps.eu20.hana.ondemand.com"
 }
 
-Write-Warning "OMF credentials are placeholders. Update with actual values before deployment."
-# Uncomment the next line when you have real OMF credentials
-# $omfSuccess = Deploy-UserProvidedService -ServiceName "omf-credentials" -Credentials $omfCredentials -Description "OMF (Order Management and Fulfillment) credentials"
+$omfSuccess = Deploy-UserProvidedService -ServiceName "omf-credentials" -Credentials $omfCredentials -Description "OMF (Order Management and Fulfillment) credentials"
 
 # Summary
 Write-Info "📋 Deployment Summary:"
@@ -151,7 +149,11 @@ if ($omsaSuccess) {
 } else {
     Write-Error "OMSA credentials: ❌ Failed"
 }
-Write-Warning "OMF credentials: ⏸️  Skipped (placeholders)"
+if ($omfSuccess) {
+    Write-Success "OMF credentials: ✅ Deployed"
+} else {
+    Write-Error "OMF credentials: ❌ Failed"
+}
 
 # List created services
 Write-Info "📋 Current user-provided services:"
