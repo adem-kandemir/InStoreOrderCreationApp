@@ -489,6 +489,49 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
+// Cart Sourcing Endpoints
+app.post('/api/sourcing/cart', async (req, res) => {
+  try {
+    const { cartItems, options } = req.body;
+    const sourcing = await omsaService.performCartSourcing(cartItems, options);
+    
+    // Ensure consistent response format for frontend
+    if (sourcing && sourcing.success) {
+      res.json({
+        success: true,
+        data: sourcing.data, // The actual OMSA response
+        source: sourcing.source,
+        lastUpdated: sourcing.lastUpdated
+      });
+    } else {
+      res.json({
+        success: false,
+        error: sourcing.error || 'Sourcing request failed',
+        source: sourcing.source || 'Unknown',
+        lastUpdated: sourcing.lastUpdated || new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('Error performing cart sourcing:', error.message);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to perform cart sourcing',
+      source: 'Server-Error',
+      lastUpdated: new Date().toISOString()
+    });
+  }
+});
+
+app.get('/api/sourcing/cache', async (req, res) => {
+  try {
+    const cachedSourcing = omsaService.getCachedSourcing();
+    res.json(cachedSourcing || { cached: false });
+  } catch (error) {
+    console.error('Error getting cached sourcing:', error.message);
+    res.status(500).json({ error: 'Failed to get cached sourcing' });
+  }
+});
+
 app.get('/api/products', async (req, res) => {
   const searchQuery = req.query.search || '';
   

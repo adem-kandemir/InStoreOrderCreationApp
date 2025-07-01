@@ -15,11 +15,16 @@ class OmsaService {
     this.lastCacheUpdate = null;
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
     
+    // Cache for sourcing data
+    this.sourcingCache = null;
+    this.sourcingTimestamp = null;
+    
     // Site mapping for inventory availability
     this.siteMapping = {
-      '1106': { type: 'store', name: 'Store 1106' },      // In-store location
+      '1100': { type: 'store', name: 'Online DC 1108' },    
+      '1106': { type: 'store', name: 'Store 1106' },    // In-store location
       '1107': { type: 'store', name: 'Store 1107' },      // In-store location  
-      '1108': { type: 'online', name: 'Online DC 1108' }  // Online distribution center
+      '1108': { type: 'online', name: 'Store 1108' }  // Online distribution center
     };
     
     this.initialize();
@@ -507,6 +512,9 @@ class OmsaService {
         ],
         sites: [
           {
+            id: "1100"
+          },
+          {
             id: "1107"
           },
           {
@@ -747,11 +755,148 @@ class OmsaService {
   }
 
   /**
+   * Perform sourcing request for cart items
+   * @param {Array} cartItems - Array of cart items with product and quantity
+   * @param {Object} options - Additional options
+   * @returns {Promise<Object>} Sourcing response
+   */
+  async performCartSourcing(cartItems, options = {}) {
+    try {
+      if (!this.baseUrl) {
+        console.log('OMSA: No base URL configured, no sourcing data available');
+        return {
+          success: false,
+          error: 'OMSA not configured',
+          source: 'OMSA-NotConfigured',
+          lastUpdated: new Date().toISOString()
+        };
+      }
+
+      if (!cartItems || cartItems.length === 0) {
+        console.log('OMSA: No cart items provided for sourcing');
+        // Clear cache if cart is empty
+        this.sourcingCache = null;
+        this.sourcingTimestamp = null;
+        return {
+          success: true,
+          cartEmpty: true,
+          source: 'OMSA-EmptyCart',
+          lastUpdated: new Date().toISOString()
+        };
+      }
+
+      console.log(`OMSA: Performing sourcing for ${cartItems.length} cart items`);
+
+      // Get access token
+      const token = await this.authService.getAccessToken('OMSA');
+      
+      // Build request body according to OMSA API specification
+      const requestBody = {
+        strategy: {
+          id: 1
+        },
+        items: cartItems.map(item => ({
+          product: {
+            id: item.product.id
+          },
+          quantity: Number(parseFloat(item.quantity).toFixed(1)),
+          unitOfMeasure: {
+            salesUnitCode: 'ST' // Standardize to ST for OMSA compatibility
+          }
+        })),
+        destination: {
+          'isoCode3166-1': options.countryCode || 'DE'
+        },
+        reservation: {
+          status: 'PENDING'
+        },
+        trace: {
+          sourcingResults: {
+            enabled: 'true'
+          },
+          sites: {
+            enabled: 'true'
+          }
+        }
+      };
+
+      console.log('OMSA: Making sourcing request:', JSON.stringify(requestBody, null, 2));
+
+      // Make sourcing API call
+      const response = await axios.post(
+        `${this.baseUrl}/v1/sourcing`,
+        requestBody,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: 15000
+        }
+      );
+
+      console.log('OMSA: Received sourcing response:', JSON.stringify(response.data, null, 2));
+
+      // Cache the response
+      this.sourcingCache = {
+        success: true,
+        data: response.data,
+        cartItems: cartItems,
+        source: 'OMSA-Sourcing',
+        lastUpdated: new Date().toISOString()
+      };
+      this.sourcingTimestamp = Date.now();
+
+      return this.sourcingCache;
+
+    } catch (error) {
+      console.error('OMSA: Error performing cart sourcing:', error.message);
+      
+      if (error.response) {
+        console.error('OMSA: Sourcing response status:', error.response.status);
+        console.error('OMSA: Sourcing response data:', error.response.data);
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        source: 'OMSA-SourcingError',
+        lastUpdated: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Get cached sourcing data
+   * @returns {Object|null} Cached sourcing data or null
+   */
+  getCachedSourcing() {
+    return this.sourcingCache;
+  }
+
+  /**
+   * Check if sourcing cache is valid
+   * @returns {boolean} True if cache is valid
+   */
+  isSourcingCacheValid() {
+    if (!this.sourcingCache || !this.sourcingTimestamp) {
+      return false;
+    }
+    
+    // Cache is valid for 10 minutes
+    const cacheTimeout = 10 * 60 * 1000;
+    return (Date.now() - this.sourcingTimestamp) < cacheTimeout;
+  }
+
+  /**
    * Clear availability cache
    */
   clearCache() {
     this.availabilityCache.clear();
-    console.log('OMSA: Availability cache cleared');
+    this.sourcingCache = null;
+    this.sourcingTimestamp = null;
+    console.log('OMSA: Availability and sourcing cache cleared');
   }
 
   /**

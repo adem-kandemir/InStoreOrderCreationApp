@@ -597,6 +597,118 @@
       }
     }
     
+    .cart-sourcing {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+      
+      .sourcing-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        
+        h4 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #333;
+        }
+        
+        .sourcing-timestamp {
+          font-size: 11px;
+          color: #666;
+          font-weight: normal;
+        }
+      }
+      
+      .sourcing-content {
+        .sourcing-shipments {
+          .shipment-item {
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            
+            .shipment-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 8px;
+              
+              .site-badge {
+                background: #007bff;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 500;
+              }
+              
+              .delivery-info {
+                font-size: 12px;
+                color: #666;
+              }
+            }
+            
+            .shipment-items {
+              .sourcing-item {
+                display: flex;
+                justify-content: space-between;
+                font-size: 13px;
+                margin-bottom: 4px;
+                
+                .available-from {
+                  font-size: 11px;
+                  color: #666;
+                  font-style: italic;
+                }
+              }
+            }
+          }
+        }
+        
+        .no-sourcing, .sourcing-error {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          
+          .sourcing-icon {
+            font-size: 16px;
+          }
+          
+          .sourcing-warnings {
+            margin-top: 8px;
+            
+            .warning-item {
+              background: #fff3cd;
+              border: 1px solid #ffeaa7;
+              padding: 6px 10px;
+              border-radius: 4px;
+              margin-bottom: 4px;
+              
+              small {
+                color: #856404;
+                font-size: 11px;
+              }
+            }
+          }
+        }
+        
+        .no-sourcing {
+          color: #ff9800;
+        }
+        
+        .sourcing-error {
+          color: #f44336;
+        }
+      }
+    }
+    
     .cart-actions {
       display: flex;
       gap: 12px;

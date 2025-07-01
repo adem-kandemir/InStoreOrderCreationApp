@@ -54,4 +54,79 @@ export interface Order {
   finalTotal: number;
   status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   createdAt: Date;
+}
+
+// Sourcing interfaces
+export interface SourcingRequest {
+  strategy: {
+    id: number;
+  };
+  items: Array<{
+    product: {
+      id: string;
+    };
+    quantity: number;
+    unitOfMeasure: {
+      salesUnitCode: string;
+    };
+  }>;
+  destination: {
+    'isoCode3166-1': string;
+  };
+  reservation: {
+    status: string;
+  };
+  trace: {
+    sourcingResults: {
+      enabled: string;
+    };
+    sites: {
+      enabled: string;
+    };
+  };
+}
+
+// Raw OMSA sourcing response from API
+export interface OMSASourcingData {
+  sourcingData: {
+    id: string;
+  };
+  shipments: Array<{
+    id: string;
+    site: {
+      id: string;
+    };
+    deliveryOptions: Array<{
+      availableToCustomer: string;
+      serviceCode: {
+        id: string;
+      };
+    }>;
+    items: Array<{
+      product: {
+        id: string;
+      };
+      quantity: number;
+      unitOfMeasure: {
+        salesUnitCode: string;
+      };
+      availableFrom: string;
+    }>;
+  }>;
+  reservation: {
+    id: string;
+    status: string;
+  };
+  trace: {
+    id: string;
+  };
+}
+
+// Wrapper for sourcing response with status info
+export interface SourcingResponse {
+  success: boolean;
+  data: OMSASourcingData | null;
+  source: string;
+  lastUpdated: string;
+  error?: string;
 } 

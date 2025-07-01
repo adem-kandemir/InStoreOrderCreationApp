@@ -295,6 +295,53 @@ npm<div class="new-order-container">
               </div>
             </div>
             
+            <!-- Cart Sourcing Information -->
+            <div class="cart-sourcing" *ngIf="sourcing$ | async as sourcing">
+              <div class="sourcing-header">
+                <h4>{{ 'cart.sourcing' | translate }}</h4>
+                <span class="sourcing-timestamp" *ngIf="sourcing.lastUpdated">
+                  ({{ 'productDetails.updated' | translate }}: {{ sourcing.lastUpdated | date:'short' }})
+                </span>
+              </div>
+              <div class="sourcing-content">
+                <div *ngIf="sourcing.success && sourcing.data?.shipments?.length > 0" class="sourcing-shipments">
+                  <div *ngFor="let shipment of sourcing.data.shipments" class="shipment-item">
+                    <div class="shipment-header">
+                      <span class="site-badge">{{ 'cart.site' | translate }} {{ shipment.site.id }}</span>
+                      <span class="delivery-info" *ngIf="shipment.deliveryOptions?.[0]">
+                        {{ shipment.deliveryOptions[0].serviceCode.id }} - 
+                        {{ shipment.deliveryOptions[0].availableToCustomer | date:'shortDate' }}
+                      </span>
+                    </div>
+                    <div class="shipment-items">
+                      <div *ngFor="let item of shipment.items" class="sourcing-item">
+                        <span>{{ item.product.id }}: {{ item.quantity }} {{ item.unitOfMeasure.salesUnitCode }}</span>
+                        <span class="available-from" *ngIf="item.availableFrom">
+                          ({{ 'cart.availableFrom' | translate }}: {{ item.availableFrom | date:'shortDate' }})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div *ngIf="sourcing.success && (!sourcing.data?.shipments || sourcing.data.shipments.length === 0)" class="no-sourcing">
+                  <span class="sourcing-icon">⚠</span>
+                  <span>{{ 'cart.noSourcing' | translate }}</span>
+                  <div *ngIf="sourcing.data?.trace?.warnings" class="sourcing-warnings">
+                    <div *ngFor="let warning of sourcing.data.trace.warnings" class="warning-item">
+                      <small>{{ warning.message }}</small>
+                    </div>
+                  </div>
+                </div>
+                <div *ngIf="!sourcing.success" class="sourcing-error">
+                  <span class="sourcing-icon">❌</span>
+                  <span>{{ 'cart.sourcingError' | translate }}</span>
+                  <div *ngIf="sourcing.error" class="error-details">
+                    <small>{{ sourcing.error }}</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             <div class="cart-actions">
               <button class="empty-cart-btn" (click)="emptyCart()">{{ 'cart.emptyCart' | translate }}</button>
               <button class="continue-btn" (click)="proceedToCustomerDetails()">{{ 'cart.continue' | translate }}</button>

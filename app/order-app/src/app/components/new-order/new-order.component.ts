@@ -24,6 +24,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   isRefreshingPrices = false;
   selectedProduct: Product | null = null;
   cart$: Observable<Cart>;
+  sourcing$: Observable<any>;
   
   // Search subject for debouncing
   private searchSubject = new Subject<string>();
@@ -62,6 +63,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     private fb: FormBuilder
   ) {
     this.cart$ = this.cartService.cart$;
+    this.sourcing$ = this.cartService.sourcing$;
     
     this.customerForm = this.fb.group({
       firstName: ['', Validators.required],

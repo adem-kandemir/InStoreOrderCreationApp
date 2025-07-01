@@ -78,7 +78,12 @@ export class LocalizationService {
         discount: 'Discount',
         finalTotal: 'Total',
         emptyCart: 'Empty cart',
-        continue: 'Continue to Customer details'
+        continue: 'Continue to Customer details',
+        sourcing: 'Sourcing Information',
+        site: 'Site',
+        availableFrom: 'Available from',
+        noSourcing: 'No sourcing data available',
+        sourcingError: 'Sourcing request failed'
       },
       
       // Customer Details
@@ -228,7 +233,12 @@ export class LocalizationService {
         discount: 'Rabatt',
         finalTotal: 'Gesamt',
         emptyCart: 'Warenkorb leeren',
-        continue: 'Weiter zu Kundendaten'
+        continue: 'Weiter zu Kundendaten',
+        sourcing: 'Sourcing-Informationen',
+        site: 'Standort',
+        availableFrom: 'Verfügbar ab',
+        noSourcing: 'Keine Sourcing-Daten verfügbar',
+        sourcingError: 'Sourcing-Anfrage fehlgeschlagen'
       },
       
       // Customer Details
