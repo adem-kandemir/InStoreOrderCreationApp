@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 
 import { ProductService } from '../../services/product.service';
 import { CartService } from '../../services/cart.service';
@@ -58,7 +59,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   // Barcode scanner properties
   isScanningBarcode = false;
   scannerError: string | null = null;
-  private videoStream: MediaStream | null = null;
+  private html5QrCode: Html5Qrcode | null = null;
 
   constructor(
     private productService: ProductService,
@@ -115,6 +116,11 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    
+    // Clean up barcode scanner
+    if (this.html5QrCode) {
+      this.stopBarcodeScanning();
+    }
   }
 
   onSearchInput(): void {
@@ -395,140 +401,98 @@ export class NewOrderComponent implements OnInit, OnDestroy {
       this.isScanningBarcode = true;
       this.scannerError = null;
 
-      // Check if camera is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera not supported by this browser');
-      }
+      // Wait for Angular to render the DOM element
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Request camera permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment', // Use back camera if available
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+      // Initialize Html5Qrcode
+      this.html5QrCode = new Html5Qrcode("barcode-scanner");
+
+      // Configuration for barcode scanning
+      const config = {
+        fps: 10,    // Optional frame per seconds for qr code scanning
+        qrbox: { width: 250, height: 250 }  // Optional if you want bounded box UI
+      };
+
+      // Start scanning
+      await this.html5QrCode.start(
+        { facingMode: "environment" }, // Use back camera
+        config,
+        (decodedText, decodedResult) => {
+          // Handle successful scan
+          console.log(`Barcode scanned: ${decodedText}`);
+          this.processBarcodeResult(decodedText);
+        },
+        (errorMessage) => {
+          // Handle scan errors (most are not critical)
+          // Uncomment to see detailed scan errors
+          // console.log(`Scan error: ${errorMessage}`);
         }
-      });
+      );
 
-      this.videoStream = stream;
-
-      // Wait for the DOM to be ready and then start the camera
-      setTimeout(() => {
-        this.setupCameraStream();
-      }, 100);
+      console.log('Barcode scanner started successfully');
 
     } catch (error) {
       console.error('Error starting barcode scanner:', error);
       this.scannerError = 'Unable to access camera. Please ensure camera permissions are granted.';
+      this.isScanningBarcode = false;
     }
-  }
-
-  private setupCameraStream(): void {
-    const videoElement = document.getElementById('barcode-scanner') as HTMLDivElement;
-    
-    if (!videoElement || !this.videoStream) {
-      this.scannerError = 'Unable to initialize camera';
-      return;
-    }
-
-    // Create video element
-    const video = document.createElement('video');
-    video.srcObject = this.videoStream;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.style.width = '100%';
-    video.style.height = '100%';
-    video.style.objectFit = 'cover';
-
-    // Clear any existing content and add video
-    videoElement.innerHTML = '';
-    videoElement.appendChild(video);
-
-    // Start the barcode detection simulation
-    this.startBarcodeDetection();
-  }
-
-  private startBarcodeDetection(): void {
-    // This is a simplified implementation
-    // In a real-world scenario, you would use a barcode scanning library like:
-    // - html5-qrcode
-    // - ZXing-js
-    // - QuaggaJS
-    
-    // For now, we'll simulate barcode detection by listening for keyboard input
-    // This allows testing without a real barcode scanning library
-    
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (this.isScanningBarcode && event.key === 'Enter') {
-        // Simulate scanning one of our test EAN codes
-        const testEAN = '9999999999987'; // RBO pen EAN
-        this.processBarcodeResult(testEAN);
-      }
-    };
-
-    document.addEventListener('keypress', handleKeyPress);
-
-    // Cleanup function
-    const cleanup = () => {
-      document.removeEventListener('keypress', handleKeyPress);
-    };
-
-    // Store cleanup function for later use
-    (this as any).barcodeCleanup = cleanup;
-
-    // Show instructions for testing
-    setTimeout(() => {
-      if (this.isScanningBarcode) {
-        this.scannerError = null;
-        console.log('Barcode scanner active. Press Enter to simulate scanning EAN: 9999999999987');
-      }
-    }, 1000);
   }
 
   private async processBarcodeResult(ean: string): Promise<void> {
     try {
       console.log('Scanned EAN:', ean);
       
+      // Stop scanning immediately to prevent endless loop
+      await this.stopBarcodeScanning();
+      
       // Search for product by EAN using the new API endpoint
       const product = await this.productService.searchProductByEAN(ean);
       
       if (product) {
-        // Stop scanning and select the found product
-        this.stopBarcodeScanning();
-        this.selectedProduct = product;
+        // Select the found product and fetch real-time data (same as manual selection)
+        this.selectProduct(product);
         
         // Optionally auto-add to cart
         // this.addToCart(product);
         
-        console.log('Product found:', product.description);
+        console.log('Product found via barcode scan:', product.description);
       } else {
-        this.scannerError = `No product found for EAN: ${ean}`;
+        // Show error but scanner is already stopped
+        this.scannerError = `No product found for EAN: ${ean}. Try scanning again or search manually.`;
       }
     } catch (error) {
       console.error('Error processing barcode result:', error);
-      this.scannerError = 'Error searching for product. Please try again.';
+      // Make sure scanner is stopped even on error
+      if (this.isScanningBarcode) {
+        await this.stopBarcodeScanning();
+      }
+      this.scannerError = 'Error searching for product. Please try scanning again.';
     }
   }
 
-  stopBarcodeScanning(): void {
+  async stopBarcodeScanning(): Promise<void> {
     this.isScanningBarcode = false;
     this.scannerError = null;
 
-    // Stop video stream
-    if (this.videoStream) {
-      this.videoStream.getTracks().forEach(track => track.stop());
-      this.videoStream = null;
-    }
-
-    // Clean up barcode detection listeners
-    if ((this as any).barcodeCleanup) {
-      (this as any).barcodeCleanup();
-      (this as any).barcodeCleanup = null;
-    }
-
-    // Clear video element
-    const videoElement = document.getElementById('barcode-scanner');
-    if (videoElement) {
-      videoElement.innerHTML = '';
+    // Stop Html5Qrcode scanner
+    if (this.html5QrCode) {
+      try {
+        const scannerState = this.html5QrCode.getState();
+        if (scannerState === Html5QrcodeScannerState.SCANNING) {
+          await this.html5QrCode.stop();
+        }
+      } catch (error) {
+        console.log('Error stopping scanner:', error);
+      }
+      
+      // Clear the scanner
+      try {
+        await this.html5QrCode.clear();
+      } catch (error) {
+        console.log('Error clearing scanner:', error);
+      }
+      
+      this.html5QrCode = null;
     }
   }
 } 

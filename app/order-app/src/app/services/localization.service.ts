@@ -173,8 +173,8 @@ export class LocalizationService {
     de: {
       // Header
       header: {
-        newOrder: 'Neue Bestellung',
-        orders: 'Bestellungen',
+        newOrder: 'Neuer Auftrag',
+        orders: 'Aufträge',
         settings: 'Einstellungen',
         language: 'Sprache'
       },
