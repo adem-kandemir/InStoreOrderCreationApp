@@ -8,8 +8,17 @@ const axios = require('axios');
 class OmfService {
   constructor() {
     this.systemName = 'OMF';
-    this.baseUrl = process.env.OMF_BASE_URL;
     this.authService = authService;
+    
+    // Get base URL from AuthService (which handles VCAP_SERVICES)
+    try {
+      const credentials = this.authService.getSystemCredentials('OMF');
+      this.baseUrl = credentials.baseUrl;
+      console.log('OMF: Service initialized with base URL:', this.baseUrl);
+    } catch (error) {
+      console.error('OMF: Failed to get credentials:', error.message);
+      this.baseUrl = null;
+    }
   }
 
   /**
@@ -18,8 +27,8 @@ class OmfService {
    */
   generateExternalNumber() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = 'RBOAPP-';
-    for (let i = 0; i < 10; i++) {
+    let result = 'AE';
+    for (let i = 0; i < 8; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
@@ -32,12 +41,13 @@ class OmfService {
    */
   mapPaymentMethodToOMF(uiPaymentMethod) {
     const paymentMapping = {
-      'Prepayment': 'Bank',
+      'Prepayment': 'Prepayment',
       'Credit Card': 'CreditCard',
       'Debit Card': 'DebitCard', 
       'Invoice': 'Invoice',
       'Direct Debit': 'DirectDebit',
       'Cash': 'Cash',
+      'Bank': 'Bank',
       'Custom': 'Other'
     };
 

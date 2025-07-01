@@ -253,7 +253,7 @@ npm<div class="new-order-container">
             
             <div *ngFor="let item of cart.items" class="cart-item">
               <div class="item-info">
-                <img [src]="item.product.image" 
+                <img [src]="getProductImageUrl(item.product.id)" 
                      [alt]="item.product.description" 
                      class="item-image"
                      (error)="onImageErrorFallback($event)">
@@ -285,7 +285,7 @@ npm<div class="new-order-container">
                 <span>{{ 'cart.totalOriginal' | translate }}</span>
                 <span>{{ cart.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
               </div>
-              <div class="total-row">
+              <div class="total-row" *ngIf="cart.discount > 0">
                 <span>{{ 'cart.discount' | translate }}</span>
                 <span>-{{ cart.discount | currency:'EUR':'symbol':'1.2-2' }}</span>
               </div>

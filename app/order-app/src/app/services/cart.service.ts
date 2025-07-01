@@ -90,7 +90,7 @@ export class CartService {
 
   private updateCartTotals(cart: Cart): void {
     cart.totalPrice = cart.items.reduce((sum, item) => sum + item.total, 0);
-    cart.discount = cart.totalPrice * 0.088; // 8.8% discount as shown in mockup
+    cart.discount = 0; // No automatic discount
     cart.finalTotal = cart.totalPrice - cart.discount;
     this.cartSubject.next({ ...cart });
     
