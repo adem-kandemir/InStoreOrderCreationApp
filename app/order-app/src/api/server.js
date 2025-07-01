@@ -31,6 +31,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from the Angular app's assets directory
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
+
+// Also serve images directly under /api/images path
+app.use('/api/images', express.static(path.join(__dirname, '../assets/images')));
+
 // Configuration based on environment
 const isCloudFoundry = process.env.CF_INSTANCE_INDEX !== undefined;
 

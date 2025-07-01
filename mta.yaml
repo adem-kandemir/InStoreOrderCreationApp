@@ -15,11 +15,34 @@ modules:
     requires:
       - name: InStoreOrderCreationApp-auth
       - name: InStoreOrderCreationApp-destination
+      - name: api-backend-app
     provides:
       - name: app-api
         properties:
           app-protocol: ${protocol}
           app-uri: ${default-uri}
+    properties:
+      destinations: |
+        [
+          {
+            "name": "api-backend",
+            "url": "~{api-backend-app/url}",
+            "forwardAuthToken": true
+          }
+        ]
+  - name: api-backend
+    type: nodejs
+    path: app/order-app/src/api
+    parameters:
+      memory: 512M
+      disk-quota: 512M
+    requires:
+      - name: InStoreOrderCreationApp-auth
+      - name: InStoreOrderCreationApp-destination
+    provides:
+      - name: api-backend-app
+        properties:
+          url: ${default-url}
 
 
 
