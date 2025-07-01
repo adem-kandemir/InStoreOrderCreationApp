@@ -44,6 +44,17 @@ export class ProductService {
     );
   }
 
+  searchProductByEAN(ean: string): Promise<Product | null> {
+    const url = `${this.apiUrl}/products/scan/${encodeURIComponent(ean)}`;
+    
+    return this.http.get<Product>(url).pipe(
+      catchError(error => {
+        console.error('Error scanning EAN:', error);
+        return of(null);
+      })
+    ).toPromise().then(result => result || null);
+  }
+
   // Additional method to check API health
   checkApiHealth(): Observable<boolean> {
     return this.http.get<any>(`${this.apiUrl}/health`).pipe(

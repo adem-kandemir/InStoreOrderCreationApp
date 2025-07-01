@@ -32,6 +32,13 @@ export class LocalizationService {
         noProductsFound: 'No products found for'
       },
       
+      // Barcode Scanner
+      scanner: {
+        title: 'Barcode Scanner',
+        instructions: 'Point your camera at a barcode to scan it',
+        cancel: 'Cancel'
+      },
+      
       // Product Table
       table: {
         id: 'ID',
@@ -170,6 +177,13 @@ export class LocalizationService {
         searching: 'Suche läuft...',
         noResults: 'Keine Produkte gefunden',
         noProductsFound: 'Keine Produkte gefunden für'
+      },
+      
+      // Barcode Scanner
+      scanner: {
+        title: 'Barcode-Scanner',
+        instructions: 'Richten Sie Ihre Kamera auf einen Barcode, um ihn zu scannen',
+        cancel: 'Abbrechen'
       },
       
       // Product Table

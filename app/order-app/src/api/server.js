@@ -220,6 +220,90 @@ app.get('/api/health', (req, res) => {
 app.get('/api/products', async (req, res) => {
   const searchQuery = req.query.search || '';
   
+  // Use mock data for Cloud Foundry environment
+  if (isCloudFoundry) {
+    console.log('Using mock data for Cloud Foundry environment');
+    
+    const mockProducts = [
+      {
+        id: '118',
+        ean: '9780201379631',
+        description: 'RBO Flaschenöffner',
+        listPrice: 15.99,
+        unit: 'PC',
+        image: '/api/images/products/118.jpg',
+        inStoreStock: 25,
+        onlineStock: 75,
+        isAvailable: true
+      },
+      {
+        id: '29',
+        ean: '9999999999987',
+        description: 'RBO pen',
+        listPrice: 3.50,
+        unit: 'PC',
+        image: '/api/images/products/29.jpg',
+        inStoreStock: 120,
+        onlineStock: 200,
+        isAvailable: true
+      },
+      {
+        id: '32',
+        ean: '7321232123811',
+        description: 'RBO Notizbuch',
+        listPrice: 8.99,
+        unit: 'PC',
+        image: '/api/images/products/32.jpg',
+        inStoreStock: 45,
+        onlineStock: 150,
+        isAvailable: true
+      },
+      {
+        id: '33',
+        ean: '9999999999963',
+        description: 'RBO Bag',
+        listPrice: 29.99,
+        unit: 'PC',
+        image: '/api/images/products/33.jpg',
+        inStoreStock: 18,
+        onlineStock: 35,
+        isAvailable: true
+      },
+      {
+        id: '116',
+        ean: '9780201379600',
+        description: 'RBO Gas cylinder',
+        listPrice: 45.00,
+        unit: 'PC',
+        image: '/api/images/products/116.jpg',
+        inStoreStock: 8,
+        onlineStock: 20,
+        isAvailable: true
+      }
+    ];
+    
+    // Filter products based on search query
+    let filtered = searchQuery 
+      ? mockProducts.filter(p => 
+          p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.ean.includes(searchQuery) ||
+          p.id.includes(searchQuery)
+        )
+      : mockProducts;
+    
+    // Limit to maximum 5 results for search
+    if (searchQuery && filtered.length > 5) {
+      filtered = filtered.slice(0, 5);
+    }
+    
+    res.json({
+      products: filtered,
+      totalCount: filtered.length
+    });
+    return;
+  }
+  
+  // For local development, try to connect to S/4HANA
   try {
     // First, check if we can connect
     const config = await getDestinationConfig();
@@ -284,7 +368,7 @@ app.get('/api/products', async (req, res) => {
       console.error('Response data:', error.response.data);
     }
     
-    // Return mock data as fallback
+    // Return mock data as fallback for local development
     const mockProducts = [
       {
         id: '1',
@@ -355,6 +439,78 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/:id', async (req, res) => {
   const productId = req.params.id;
   
+  // Use mock data for Cloud Foundry environment
+  if (isCloudFoundry) {
+    console.log('Using mock data for Cloud Foundry environment - Product ID:', productId);
+    
+    const mockProducts = {
+      '118': {
+        id: '118',
+        ean: '9780201379631',
+        description: 'RBO Flaschenöffner',
+        listPrice: 15.99,
+        unit: 'PC',
+        image: '/api/images/products/118.jpg',
+        inStoreStock: 25,
+        onlineStock: 75,
+        isAvailable: true
+      },
+      '29': {
+        id: '29',
+        ean: '9999999999987',
+        description: 'RBO pen',
+        listPrice: 3.50,
+        unit: 'PC',
+        image: '/api/images/products/29.jpg',
+        inStoreStock: 120,
+        onlineStock: 200,
+        isAvailable: true
+      },
+      '32': {
+        id: '32',
+        ean: '7321232123811',
+        description: 'RBO Notizbuch',
+        listPrice: 8.99,
+        unit: 'PC',
+        image: '/api/images/products/32.jpg',
+        inStoreStock: 45,
+        onlineStock: 150,
+        isAvailable: true
+      },
+      '33': {
+        id: '33',
+        ean: '9999999999963',
+        description: 'RBO Bag',
+        listPrice: 29.99,
+        unit: 'PC',
+        image: '/api/images/products/33.jpg',
+        inStoreStock: 18,
+        onlineStock: 35,
+        isAvailable: true
+      },
+      '116': {
+        id: '116',
+        ean: '9780201379600',
+        description: 'RBO Gas cylinder',
+        listPrice: 45.00,
+        unit: 'PC',
+        image: '/api/images/products/116.jpg',
+        inStoreStock: 8,
+        onlineStock: 20,
+        isAvailable: true
+      }
+    };
+    
+    const product = mockProducts[productId];
+    if (product) {
+      res.json(product);
+    } else {
+      res.status(404).json({ error: 'Product not found' });
+    }
+    return;
+  }
+  
+  // For local development, try to connect to S/4HANA
   try {
     const config = await getDestinationConfig();
     
@@ -389,7 +545,7 @@ app.get('/api/products/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching product:', error.message);
     
-    // Return mock data as fallback
+    // Return mock data as fallback for local development
     const mockProducts = {
       '1': {
         id: '1',
@@ -420,6 +576,192 @@ app.get('/api/products/:id', async (req, res) => {
       res.json(product);
     } else {
       res.status(404).json({ error: 'Product not found' });
+    }
+  }
+});
+
+// EAN scanning endpoint
+app.get('/api/products/scan/:ean', async (req, res) => {
+  const ean = req.params.ean;
+  
+  console.log('EAN scan request for:', ean);
+  
+  // Use mock data for Cloud Foundry environment
+  if (isCloudFoundry) {
+    console.log('Using mock data for Cloud Foundry environment - EAN scan:', ean);
+    
+    const mockProducts = [
+      {
+        id: '118',
+        ean: '9780201379631',
+        description: 'RBO Flaschenöffner',
+        listPrice: 15.99,
+        unit: 'PC',
+        image: '/api/images/products/118.jpg',
+        inStoreStock: 25,
+        onlineStock: 75,
+        isAvailable: true
+      },
+      {
+        id: '29',
+        ean: '9999999999987',
+        description: 'RBO pen',
+        listPrice: 3.50,
+        unit: 'PC',
+        image: '/api/images/products/29.jpg',
+        inStoreStock: 120,
+        onlineStock: 200,
+        isAvailable: true
+      },
+      {
+        id: '32',
+        ean: '7321232123811',
+        description: 'RBO Notizbuch',
+        listPrice: 8.99,
+        unit: 'PC',
+        image: '/api/images/products/32.jpg',
+        inStoreStock: 45,
+        onlineStock: 150,
+        isAvailable: true
+      },
+      {
+        id: '33',
+        ean: '9999999999963',
+        description: 'RBO Bag',
+        listPrice: 29.99,
+        unit: 'PC',
+        image: '/api/images/products/33.jpg',
+        inStoreStock: 18,
+        onlineStock: 35,
+        isAvailable: true
+      },
+      {
+        id: '116',
+        ean: '9780201379600',
+        description: 'RBO Gas cylinder',
+        listPrice: 45.00,
+        unit: 'PC',
+        image: '/api/images/products/116.jpg',
+        inStoreStock: 8,
+        onlineStock: 20,
+        isAvailable: true
+      }
+    ];
+    
+    // Find product by exact EAN match
+    const product = mockProducts.find(p => p.ean === ean);
+    
+    if (product) {
+      console.log('Product found by EAN:', product.id, product.description);
+      res.json(product);
+    } else {
+      console.log('Product not found for EAN:', ean);
+      res.status(404).json({ error: 'Product not found', ean: ean });
+    }
+    return;
+  }
+  
+  // For local development, try to connect to S/4HANA
+  try {
+    const config = await getDestinationConfig();
+    
+    const requestConfig = {
+      params: {
+        '$format': 'json',
+        '$filter': `ProductStandardID eq '${ean}'`,
+        '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
+      },
+      headers: config.headers,
+      proxy: false
+    };
+    
+    // Only add agent for Cloud Foundry (if needed)
+    if (config.agent) {
+      requestConfig.httpsAgent = config.agent;
+    }
+    
+    // Search products by EAN in S/4HANA
+    const response = await axios.get(
+      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product`,
+      requestConfig
+    );
+
+    const products = response.data.d?.results || [];
+    
+    if (products.length > 0) {
+      // Get the first matching product
+      const s4Product = products[0];
+      
+      // Fetch description for this product
+      const descriptions = await fetchProductDescriptions([s4Product.Product], config);
+      const product = transformProduct(s4Product, descriptions[s4Product.Product]);
+      
+      console.log('Product found by EAN in S/4HANA:', product.id, product.description);
+      res.json(product);
+    } else {
+      console.log('Product not found for EAN in S/4HANA:', ean);
+      res.status(404).json({ error: 'Product not found', ean: ean });
+    }
+  } catch (error) {
+    console.error('Error scanning EAN:', error.message);
+    
+    // Return mock data as fallback for local development
+    const mockProducts = [
+      {
+        id: '1',
+        ean: '4006381333634',
+        description: 'Stabilo Boss Highlighter Yellow',
+        listPrice: 2.99,
+        unit: 'PC',
+        image: '/api/images/products/1.jpg',
+        inStoreStock: 45,
+        onlineStock: 120,
+        isAvailable: true
+      },
+      {
+        id: '2',
+        ean: '4006381333641',
+        description: 'Stabilo Boss Highlighter Pink',
+        listPrice: 2.99,
+        unit: 'PC',
+        image: '/api/images/products/2.jpg',
+        inStoreStock: 32,
+        onlineStock: 89,
+        isAvailable: true
+      },
+      {
+        id: '3',
+        ean: '4006381333658',
+        description: 'Stabilo Boss Highlighter Green',
+        listPrice: 2.99,
+        unit: 'PC',
+        image: '/api/images/products/3.jpg',
+        inStoreStock: 28,
+        onlineStock: 95,
+        isAvailable: true
+      },
+      {
+        id: '4',
+        ean: '2050000000010',
+        description: 'Test Product from S/4HANA',
+        listPrice: 19.99,
+        unit: 'ST',
+        image: '/api/images/products/4.jpg',
+        inStoreStock: 15,
+        onlineStock: 50,
+        isAvailable: true
+      }
+    ];
+    
+    // Find product by exact EAN match
+    const product = mockProducts.find(p => p.ean === ean);
+    
+    if (product) {
+      console.log('Product found by EAN in fallback data:', product.id, product.description);
+      res.json(product);
+    } else {
+      console.log('Product not found for EAN in fallback data:', ean);
+      res.status(404).json({ error: 'Product not found', ean: ean });
     }
   }
 });

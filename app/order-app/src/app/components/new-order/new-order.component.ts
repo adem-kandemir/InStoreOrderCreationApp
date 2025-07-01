@@ -48,6 +48,11 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   
   orderConfirmation: string | null = null;
   orderError = false;
+  
+  // Barcode scanner properties
+  isScanningBarcode = false;
+  scannerError: string | null = null;
+  private videoStream: MediaStream | null = null;
 
   constructor(
     private productService: ProductService,
@@ -266,6 +271,149 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLImageElement;
     if (target) {
       target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjIiIGZpbGw9IiNmNWY1ZjUiLz4KPGNpcmNsZSBjeD0iOC41IiBjeT0iOC41IiByPSIxLjUiIGZpbGw9IiNjY2MiLz4KPHBhdGggZD0iTTIxIDE1bC01LTVMNSAyMSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+';
+    }
+  }
+
+  // Barcode scanning methods
+  async startBarcodeScanning(): Promise<void> {
+    try {
+      this.isScanningBarcode = true;
+      this.scannerError = null;
+
+      // Check if camera is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported by this browser');
+      }
+
+      // Request camera permission
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment', // Use back camera if available
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      this.videoStream = stream;
+
+      // Wait for the DOM to be ready and then start the camera
+      setTimeout(() => {
+        this.setupCameraStream();
+      }, 100);
+
+    } catch (error) {
+      console.error('Error starting barcode scanner:', error);
+      this.scannerError = 'Unable to access camera. Please ensure camera permissions are granted.';
+    }
+  }
+
+  private setupCameraStream(): void {
+    const videoElement = document.getElementById('barcode-scanner') as HTMLDivElement;
+    
+    if (!videoElement || !this.videoStream) {
+      this.scannerError = 'Unable to initialize camera';
+      return;
+    }
+
+    // Create video element
+    const video = document.createElement('video');
+    video.srcObject = this.videoStream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = 'cover';
+
+    // Clear any existing content and add video
+    videoElement.innerHTML = '';
+    videoElement.appendChild(video);
+
+    // Start the barcode detection simulation
+    this.startBarcodeDetection();
+  }
+
+  private startBarcodeDetection(): void {
+    // This is a simplified implementation
+    // In a real-world scenario, you would use a barcode scanning library like:
+    // - html5-qrcode
+    // - ZXing-js
+    // - QuaggaJS
+    
+    // For now, we'll simulate barcode detection by listening for keyboard input
+    // This allows testing without a real barcode scanning library
+    
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (this.isScanningBarcode && event.key === 'Enter') {
+        // Simulate scanning one of our test EAN codes
+        const testEAN = '9999999999987'; // RBO pen EAN
+        this.processBarcodeResult(testEAN);
+      }
+    };
+
+    document.addEventListener('keypress', handleKeyPress);
+
+    // Cleanup function
+    const cleanup = () => {
+      document.removeEventListener('keypress', handleKeyPress);
+    };
+
+    // Store cleanup function for later use
+    (this as any).barcodeCleanup = cleanup;
+
+    // Show instructions for testing
+    setTimeout(() => {
+      if (this.isScanningBarcode) {
+        this.scannerError = null;
+        console.log('Barcode scanner active. Press Enter to simulate scanning EAN: 9999999999987');
+      }
+    }, 1000);
+  }
+
+  private async processBarcodeResult(ean: string): Promise<void> {
+    try {
+      console.log('Scanned EAN:', ean);
+      
+      // Search for product by EAN using the new API endpoint
+      const product = await this.productService.searchProductByEAN(ean);
+      
+      if (product) {
+        // Stop scanning and select the found product
+        this.stopBarcodeScanning();
+        this.selectedProduct = product;
+        
+        // Optionally auto-add to cart
+        // this.addToCart(product);
+        
+        console.log('Product found:', product.description);
+      } else {
+        this.scannerError = `No product found for EAN: ${ean}`;
+      }
+    } catch (error) {
+      console.error('Error processing barcode result:', error);
+      this.scannerError = 'Error searching for product. Please try again.';
+    }
+  }
+
+  stopBarcodeScanning(): void {
+    this.isScanningBarcode = false;
+    this.scannerError = null;
+
+    // Stop video stream
+    if (this.videoStream) {
+      this.videoStream.getTracks().forEach(track => track.stop());
+      this.videoStream = null;
+    }
+
+    // Clean up barcode detection listeners
+    if ((this as any).barcodeCleanup) {
+      (this as any).barcodeCleanup();
+      (this as any).barcodeCleanup = null;
+    }
+
+    // Clear video element
+    const videoElement = document.getElementById('barcode-scanner');
+    if (videoElement) {
+      videoElement.innerHTML = '';
     }
   }
 } 

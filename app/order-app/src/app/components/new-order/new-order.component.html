@@ -10,7 +10,10 @@
           (keyup.enter)="onSearch()"
           [placeholder]="'search.placeholder' | translate"
           class="search-input">
-        <button class="barcode-btn" title="Scan barcode">
+        <button class="barcode-btn" 
+                title="Scan barcode" 
+                (click)="startBarcodeScanning()"
+                [disabled]="isScanningBarcode">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="3" y="6" width="2" height="12" fill="currentColor"/>
             <rect x="7" y="6" width="1" height="12" fill="currentColor"/>
@@ -23,6 +26,47 @@
       </div>
       
       <div *ngIf="isSearching" class="loading">{{ 'search.searching' | translate }}</div>
+      
+      <!-- Barcode Scanner Modal -->
+      <div *ngIf="isScanningBarcode" class="barcode-scanner-modal">
+        <div class="scanner-overlay">
+          <div class="scanner-container">
+            <div class="scanner-header">
+              <h3>{{ 'scanner.title' | translate }}</h3>
+              <button class="close-scanner-btn" (click)="stopBarcodeScanning()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="scanner-view">
+              <div id="barcode-scanner" class="scanner-camera"></div>
+              <div class="scanner-overlay-frame">
+                <div class="scanner-corners">
+                  <div class="corner top-left"></div>
+                  <div class="corner top-right"></div>
+                  <div class="corner bottom-left"></div>
+                  <div class="corner bottom-right"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="scanner-instructions">
+              <p>{{ 'scanner.instructions' | translate }}</p>
+              <div *ngIf="scannerError" class="scanner-error">
+                {{ scannerError }}
+              </div>
+            </div>
+            
+            <div class="scanner-controls">
+              <button class="scanner-control-btn" (click)="stopBarcodeScanning()">
+                {{ 'scanner.cancel' | translate }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       
       <div *ngIf="!isSearching && searchQuery.trim().length > 0 && searchResults.length === 0" class="no-results">
         <p>{{ 'search.noProductsFound' | translate }} "{{ searchQuery }}"</p>
