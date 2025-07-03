@@ -140,6 +140,45 @@ export class LocalizationService {
         logout: 'Logout'
       },
       
+      // Orders
+      orders: {
+        searchPlaceholder: 'Search by order number or customer name',
+        orderNumber: 'Order Number',
+        date: 'Date',
+        customer: 'Customer',
+        status: 'Status',
+        orderDetails: 'Order details',
+        order: 'Order',
+        deliveryAddress: 'Delivery Address',
+        paymentDetails: 'Payment details',
+        orderTotal: 'Order total',
+        paymentMethod: 'Payment method',
+        paymentStatus: 'Payment status',
+        paid: 'Paid',
+        shipmentDetails: 'Shipment details',
+        deliveryOption: 'Delivery Option',
+        expectedDeliveryDate: 'Expected Delivery Date',
+        numberOfPackages: 'Number of packages',
+        orderItems: 'Order Items',
+        pieces: 'pieces',
+        totalPrice: 'Total Price',
+        shipment: 'Shipment',
+        total: 'Total',
+              orderActivities: 'Order activities',
+      orderDelivered: 'Order delivered',
+      orderShipped: 'Order shipped',
+      fulfillmentInitiated: 'Fulfillment initiated',
+      orderPlaced: 'Order placed',
+      product: 'Product',
+      quantity: 'Quantity',
+      unitPrice: 'Unit Price',
+      loadingItems: 'Loading items...',
+      noItems: 'No items to display',
+        on: 'on',
+        completed: 'Completed',
+        failed: 'Failed'
+      },
+      
       // Settings
       settings: {
         title: 'Settings',
@@ -173,7 +212,7 @@ export class LocalizationService {
     de: {
       // Header
       header: {
-        newOrder: 'Neuer Auftrag',
+        newOrder: 'Auftragserfassung',
         orders: 'Aufträge',
         settings: 'Einstellungen',
         language: 'Sprache'
@@ -293,6 +332,45 @@ export class LocalizationService {
         roles: 'Zugewiesene Rollen',
         contactAdmin: 'Administrator kontaktieren',
         logout: 'Abmelden'
+      },
+      
+      // Orders
+      orders: {
+        searchPlaceholder: 'Nach Auftragsnummer oder Kundenname suchen',
+        orderNumber: 'Auftragsnummer',
+        date: 'Datum',
+        customer: 'Kunde',
+        status: 'Status',
+        orderDetails: 'Auftragsdetails',
+        order: 'Auftrag',
+        deliveryAddress: 'Lieferadresse',
+        paymentDetails: 'Zahlungsdetails',
+        orderTotal: 'Auftragssumme',
+        paymentMethod: 'Zahlungsmethode',
+        paymentStatus: 'Zahlungsstatus',
+        paid: 'Bezahlt',
+        shipmentDetails: 'Versanddetails',
+        deliveryOption: 'Lieferoption',
+        expectedDeliveryDate: 'Voraussichtliches Lieferdatum',
+        numberOfPackages: 'Anzahl der Pakete',
+        orderItems: 'Auftragspositionen',
+        pieces: 'Stück',
+        totalPrice: 'Gesamtpreis',
+        shipment: 'Versand',
+        total: 'Gesamt',
+        orderActivities: 'Auftragsaktivitäten',
+        orderDelivered: 'Auftrag geliefert',
+        orderShipped: 'Auftrag versendet',
+        fulfillmentInitiated: 'Erfüllung eingeleitet',
+        orderPlaced: 'Auftrag erteilt',
+        product: 'Produkt',
+        quantity: 'Menge',
+        unitPrice: 'Stückpreis',
+        loadingItems: 'Artikel werden geladen...',
+        noItems: 'Keine Artikel vorhanden',
+        on: 'am',
+        completed: 'Abgeschlossen',
+        failed: 'Fehlgeschlagen'
       },
       
       // Settings

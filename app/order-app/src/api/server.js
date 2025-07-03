@@ -485,7 +485,8 @@ app.post('/api/orders', async (req, res) => {
 
 app.get('/api/orders/:orderId', async (req, res) => {
   try {
-    const order = await omfService.getOrder(req.params.orderId);
+    // Pass query parameters (like expand) to the OMF service
+    const order = await omfService.getOrder(req.params.orderId, req.query);
     res.json(order);
   } catch (error) {
     console.error('Error getting order:', error.message);
@@ -536,11 +537,46 @@ app.post('/api/orders/:orderId/payment', async (req, res) => {
 
 app.get('/api/orders', async (req, res) => {
   try {
+    // Pass all query parameters including expand
     const orders = await omfService.searchOrders(req.query);
     res.json(orders);
   } catch (error) {
     console.error('Error searching orders:', error.message);
     res.status(500).json({ error: 'Failed to search orders' });
+  }
+});
+
+app.get('/api/orders/:orderId/items', async (req, res) => {
+  try {
+    const items = await omfService.getOrderItems(req.params.orderId);
+    res.json(items);
+  } catch (error) {
+    console.error('Error getting order items:', error.message);
+    res.status(500).json({ error: 'Failed to get order items' });
+  }
+});
+
+app.get('/api/orderActivities', async (req, res) => {
+  try {
+    const { itemId } = req.query;
+    if (!itemId) {
+      return res.status(400).json({ error: 'itemId query parameter is required' });
+    }
+    const activities = await omfService.getOrderActivities(itemId);
+    res.json(activities);
+  } catch (error) {
+    console.error('Error getting order activities:', error.message);
+    res.status(500).json({ error: 'Failed to get order activities' });
+  }
+});
+
+app.get('/api/orders/:orderId/activities', async (req, res) => {
+  try {
+    const activities = await omfService.getOrderActivitiesForAllItems(req.params.orderId);
+    res.json(activities);
+  } catch (error) {
+    console.error('Error getting all order activities:', error.message);
+    res.status(500).json({ error: 'Failed to get order activities' });
   }
 });
 

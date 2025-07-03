@@ -357,24 +357,55 @@ class OmfService {
   /**
    * Get order by ID
    * @param {string} orderId - Order ID
+   * @param {Object} queryParams - Query parameters (e.g., expand)
    * @returns {Promise<Object>} Order information
    */
-  async getOrder(orderId) {
+  async getOrder(orderId, queryParams = {}) {
     try {
-      const response = await authService.makeAuthenticatedRequest(
-        this.systemName,
-        `/api/v1/orders/${orderId}`,
+      if (!this.baseUrl) {
+        throw new Error('OMF service not configured - missing base URL');
+      }
+
+      // Get access token
+      const token = await this.authService.getAccessToken('OMF');
+      
+      // Build URL with query parameters
+      let url = `${this.baseUrl}/api/v2/orders/${orderId}`;
+      const params = new URLSearchParams();
+      
+      // Add expand parameters if present
+      if (queryParams.expand) {
+        // Handle both single expand and multiple expand parameters
+        const expandParams = Array.isArray(queryParams.expand) ? queryParams.expand : [queryParams.expand];
+        expandParams.forEach(param => params.append('expand', param));
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      console.log('OMF: Fetching order with URL:', url);
+      
+      const response = await axios.get(
+        url,
         {
-          method: 'GET'
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          timeout: 15000
         }
       );
 
-      return this.transformOrderResponse(response);
+      // Return raw response when expand is used, otherwise transform
+      if (queryParams.expand) {
+        return response.data;
+      }
+      
+      return this.transformOrderResponse(response.data);
     } catch (error) {
       console.error('Error getting order:', error.message);
-      
-      // Return fallback order for development
-      return this.getFallbackOrder(orderId);
+      throw error;
     }
   }
 
@@ -500,36 +531,201 @@ class OmfService {
   }
 
   /**
+   * Get order items with expanded price information
+   * @param {string} orderId - Order ID
+   * @returns {Promise<Array>} Order items with price details
+   */
+  async getOrderItems(orderId) {
+    try {
+      if (!this.baseUrl) {
+        throw new Error('OMF service not configured - missing base URL');
+      }
+
+      // Get access token
+      const token = await this.authService.getAccessToken('OMF');
+      
+      const response = await axios.get(
+        `${this.baseUrl}/api/v2/orders/${orderId}/items?expand=price`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          timeout: 15000
+        }
+      );
+
+      console.log('OMF: Order items response:', JSON.stringify(response.data, null, 2));
+      return response.data;
+    } catch (error) {
+      console.error('OMF: Error getting order items:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get activities for a specific order item
+   * @param {string} itemId - Item ID
+   * @returns {Promise<Array>} Activities for the item
+   */
+  async getOrderActivities(itemId) {
+    try {
+      if (!this.baseUrl) {
+        throw new Error('OMF service not configured - missing base URL');
+      }
+
+      // Get access token
+      const token = await this.authService.getAccessToken('OMF');
+      
+      const response = await axios.get(
+        `${this.baseUrl}/api/v1/orderActivities?itemId=${itemId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          timeout: 15000
+        }
+      );
+
+      console.log('OMF: Activities response for item', itemId, ':', JSON.stringify(response.data, null, 2));
+      return response.data;
+    } catch (error) {
+      console.error('OMF: Error getting order activities:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all activities for all items in an order
+   * @param {string} orderId - Order ID
+   * @returns {Promise<Object>} Map of itemId to activities
+   */
+  async getOrderActivitiesForAllItems(orderId) {
+    try {
+      // First get all items for the order
+      const items = await this.getOrderItems(orderId);
+      
+      // Then get activities for each item in parallel
+      const activitiesPromises = items.map(item => 
+        this.getOrderActivities(item.id)
+          .then(activities => ({ itemId: item.id, activities }))
+          .catch(error => ({ 
+            itemId: item.id, 
+            activities: [], 
+            error: error.message 
+          }))
+      );
+
+      const activitiesResults = await Promise.all(activitiesPromises);
+      
+      // Convert to a map for easier access
+      const activitiesMap = {};
+      activitiesResults.forEach(result => {
+        activitiesMap[result.itemId] = result.activities;
+      });
+
+      return activitiesMap;
+    } catch (error) {
+      console.error('OMF: Error getting all order activities:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Search orders by criteria
    * @param {Object} searchCriteria - Search parameters
    * @returns {Promise<Object>} Search results
    */
   async searchOrders(searchCriteria) {
     try {
+      if (!this.baseUrl) {
+        throw new Error('OMF service not configured - missing base URL');
+      }
+
+      console.log('OMF: Searching orders with criteria:', searchCriteria);
+
+      // Get access token
+      const token = await this.authService.getAccessToken('OMF');
+      
       const params = new URLSearchParams();
       
-      if (searchCriteria.storeId) params.append('storeId', searchCriteria.storeId);
-      if (searchCriteria.customerId) params.append('customerId', searchCriteria.customerId);
+      // Map frontend parameters to OMF API parameters
+      if (searchCriteria.displayId) params.append('displayId', searchCriteria.displayId);
+      if (searchCriteria.precedingDocumentNumber) params.append('precedingDocumentNumber', searchCriteria.precedingDocumentNumber);
+      if (searchCriteria.customerFirstName) params.append('customerFirstName', searchCriteria.customerFirstName);
+      if (searchCriteria.customerLastName) params.append('customerLastName', searchCriteria.customerLastName);
       if (searchCriteria.status) params.append('status', searchCriteria.status);
-      if (searchCriteria.dateFrom) params.append('dateFrom', searchCriteria.dateFrom);
-      if (searchCriteria.dateTo) params.append('dateTo', searchCriteria.dateTo);
-      if (searchCriteria.limit) params.append('limit', searchCriteria.limit.toString());
-      if (searchCriteria.offset) params.append('offset', searchCriteria.offset.toString());
+      if (searchCriteria.marketId) params.append('marketId', searchCriteria.marketId);
+      if (searchCriteria.owner) params.append('owner', searchCriteria.owner);
+      if (searchCriteria.customerCuid) params.append('customerCuid', searchCriteria.customerCuid);
+      if (searchCriteria.precedingDocumentSystemId) params.append('precedingDocumentSystemId', searchCriteria.precedingDocumentSystemId);
+      if (searchCriteria.precedingDocumentId) params.append('precedingDocumentId', searchCriteria.precedingDocumentId);
+      if (searchCriteria.modifiedAfter) params.append('modifiedAfter', searchCriteria.modifiedAfter);
+      if (searchCriteria.createdAfter) params.append('createdAfter', searchCriteria.createdAfter);
+      if (searchCriteria.createdBefore) params.append('createdBefore', searchCriteria.createdBefore);
+      if (searchCriteria.transferHoldEndBefore) params.append('transferHoldEndBefore', searchCriteria.transferHoldEndBefore);
+      if (searchCriteria.customerDisplayId) params.append('customerDisplayId', searchCriteria.customerDisplayId);
+      if (searchCriteria.customerMiddleName) params.append('customerMiddleName', searchCriteria.customerMiddleName);
+      if (searchCriteria.shipToPartyCuid) params.append('shipToPartyCuid', searchCriteria.shipToPartyCuid);
+      if (searchCriteria.shipToPartyFirstName) params.append('shipToPartyFirstName', searchCriteria.shipToPartyFirstName);
+      if (searchCriteria.shipToPartyMiddleName) params.append('shipToPartyMiddleName', searchCriteria.shipToPartyMiddleName);
+      if (searchCriteria.shipToPartyLastName) params.append('shipToPartyLastName', searchCriteria.shipToPartyLastName);
+      
+      // Pagination parameters
+      if (searchCriteria.page !== undefined) params.append('page', searchCriteria.page.toString());
+      if (searchCriteria.size !== undefined) params.append('size', searchCriteria.size.toString());
+      
+      // Sort parameter
+      if (searchCriteria.sort) params.append('sort', searchCriteria.sort);
+      
+      // Expand parameter
+      if (searchCriteria.expand) params.append('expand', searchCriteria.expand);
 
-      const response = await authService.makeAuthenticatedRequest(
-        this.systemName,
-        `/api/v1/orders?${params.toString()}`,
+      console.log('OMF: Making search request with params:', params.toString());
+
+      const response = await axios.get(
+        `${this.baseUrl}/api/v2/orders?${params.toString()}`,
         {
-          method: 'GET'
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          timeout: 15000
         }
       );
 
-      return this.transformOrderListResponse(response);
-    } catch (error) {
-      console.error('Error searching orders:', error.message);
+      console.log('OMF: Search response received');
+
+      // Handle both array response and paginated response
+      if (Array.isArray(response.data)) {
+        return {
+          content: response.data,
+          totalElements: response.data.length,
+          totalPages: 1,
+          size: response.data.length,
+          number: 0,
+          source: 'OMF-RealAPI'
+        };
+      }
       
-      // Return fallback search results for development
-      return this.getFallbackOrderSearch(searchCriteria);
+      // Paginated response
+      return {
+        content: response.data.content || response.data.orders || [],
+        totalElements: response.data.totalElements || response.data.totalCount || 0,
+        totalPages: response.data.totalPages || 1,
+        size: response.data.size || 20,
+        number: response.data.number || 0,
+        source: 'OMF-RealAPI'
+      };
+      
+    } catch (error) {
+      console.error('OMF: Error searching orders:', error.message);
+      if (error.response) {
+        console.error('OMF: Response status:', error.response.status);
+        console.error('OMF: Response data:', error.response.data);
+      }
+      throw error;
     }
   }
 
@@ -598,148 +794,6 @@ class OmfService {
   }
 
   /**
-   * Transform OMF order list response to standardized format
-   * @param {Object} response - Raw OMF response
-   * @returns {Object} Transformed response
-   */
-  transformOrderListResponse(response) {
-    return {
-      orders: (response.orders || []).map(order => this.transformOrderResponse(order)),
-      totalCount: response.totalCount || 0,
-      hasMore: response.hasMore || false,
-      nextOffset: response.nextOffset
-    };
-  }
-
-  /**
-   * Fallback order creation for development/testing
-   * @param {Object} orderData - Order data from UI
-   * @returns {Object} Fallback order creation result
-   */
-  getFallbackOrderCreation(orderData) {
-    const orderId = `FALLBACK_ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const externalNumber = this.generateExternalNumber();
-    
-    // Calculate totals from cart items (UI format)
-    const subtotal = orderData.totalPrice || 0;
-    const tax = subtotal * 0.19; // 19% VAT
-    const discount = orderData.discount || 0;
-    const shippingCost = orderData.shipping?.price || 0;
-    const total = orderData.finalTotal || (subtotal + tax - discount + shippingCost);
-
-    return {
-      orderId: orderId,
-      externalNumber: externalNumber,
-      status: 'CREATED',
-      
-      // OMF-style response structure
-      precedingDocument: {
-        externalSystemReference: {
-          externalId: this.generateUUID(),
-          externalNumber: externalNumber,
-          externalSystemId: "RBO_Order_App",
-          originalSystemId: "OrderCreationApp"
-        }
-      },
-      
-      // Customer information (simplified)
-      customer: {
-        displayId: `${orderData.customer.firstName} ${orderData.customer.lastName}`,
-        person: {
-          firstName: orderData.customer.firstName,
-          lastName: orderData.customer.lastName
-        }
-      },
-      
-      // Order metadata
-      market: {
-        marketId: "OrderCreationApp"
-      },
-      
-      description: `Order for ${orderData.customer.firstName} ${orderData.customer.lastName} - ${new Date().toISOString()}`,
-      
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      
-      // Items in OMF format
-      orderItems: orderData.items.map((item, index) => ({
-        itemType: "PHYSICAL",
-        lineNumber: index + 1,
-        product: {
-          externalSystemReference: {
-            externalId: item.product.id,
-            externalSystemId: "RS4CLNT100"
-          }
-        },
-        quantity: {
-          unit: this.mapUnitToOMF(item.product.unit),
-          value: Number(item.quantity)
-        },
-        referenceId: item.product.id
-      })),
-      
-      // Fees
-      fees: [
-        {
-          category: "SHIPPING",
-          finalAmount: shippingCost,
-          originalAmount: shippingCost
-        }
-      ],
-      
-      // Custom fields
-      customFields: {
-        PaymentMethod: this.mapPaymentMethodToOMF(orderData.payment.name)
-      },
-      
-      // Totals for convenience (not OMF format but useful for display)
-      totals: {
-        subtotal: subtotal,
-        tax: tax,
-        discount: discount,
-        shippingCost: shippingCost,
-        total: total,
-        currency: 'EUR'
-      },
-      
-      source: 'OMF-Fallback'
-    };
-  }
-
-  /**
-   * Fallback order for development/testing
-   * @param {string} orderId - Order ID
-   * @returns {Object} Fallback order data
-   */
-  getFallbackOrder(orderId) {
-    return {
-      orderId: orderId,
-      orderNumber: `ORD-${Date.now()}`,
-      status: 'PROCESSING',
-      storeId: process.env.DEFAULT_STORE_ID || 'STORE001',
-      customerId: 'CUSTOMER001',
-      employeeId: 'EMPLOYEE001',
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      updatedAt: new Date().toISOString(),
-      items: [
-        {
-          productId: '118',
-          quantity: 1,
-          unitPrice: 19.99,
-          discountAmount: 0
-        }
-      ],
-      totals: {
-        subtotal: 19.99,
-        tax: 3.80,
-        discount: 0,
-        total: 23.79
-      },
-      source: 'fallback'
-    };
-  }
-
-  /**
    * Fallback fulfillment for development/testing
    * @param {string} orderId - Order ID
    * @returns {Object} Fallback fulfillment data
@@ -786,39 +840,6 @@ class OmfService {
       status: 'COMPLETED',
       processedAt: new Date().toISOString(),
       reference: `REF_${orderId}`,
-      source: 'fallback'
-    };
-  }
-
-  /**
-   * Fallback order search for development/testing
-   * @param {Object} searchCriteria - Search criteria
-   * @returns {Object} Fallback search results
-   */
-  getFallbackOrderSearch(searchCriteria) {
-    return {
-      orders: [
-        {
-          orderId: 'FALLBACK_ORDER_001',
-          orderNumber: 'ORD-001',
-          status: 'COMPLETED',
-          storeId: 'STORE001',
-          customerId: 'CUSTOMER001',
-          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          totals: { total: 23.79 }
-        },
-        {
-          orderId: 'FALLBACK_ORDER_002',
-          orderNumber: 'ORD-002',
-          status: 'PROCESSING',
-          storeId: 'STORE001',
-          customerId: 'CUSTOMER002',
-          createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-          totals: { total: 45.99 }
-        }
-      ],
-      totalCount: 2,
-      hasMore: false,
       source: 'fallback'
     };
   }

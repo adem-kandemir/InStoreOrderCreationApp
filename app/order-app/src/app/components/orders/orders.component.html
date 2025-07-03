@@ -1,94 +1,311 @@
 <div class="orders-container">
-  <div class="orders-header">
-    <h1>Order History</h1>
-    <p>View and manage your recent orders</p>
-  </div>
 
-  <div *ngIf="loading" class="loading-state">
-    <div class="loading-spinner"></div>
-    <p>Loading orders...</p>
-  </div>
 
-  <div *ngIf="!loading && orders.length === 0" class="empty-state">
-    <div class="empty-icon">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2"/>
-      </svg>
+  <!-- Search Section -->
+  <div class="search-section">
+    <div class="search-bar">
+      <input 
+        type="text" 
+        [(ngModel)]="searchQuery" 
+        (ngModelChange)="onSearchChange($event)"
+        [placeholder]="'orders.searchPlaceholder' | translate"
+        class="search-input">
     </div>
-    <h3>No orders found</h3>
-    <p>You haven't placed any orders yet.</p>
-    <a routerLink="/new-order" class="create-order-btn">Create New Order</a>
   </div>
 
-  <div *ngIf="!loading && orders.length > 0" class="orders-list">
-    <div *ngFor="let order of orders" class="order-card">
-      <div class="order-header">
-        <div class="order-info">
-          <h3>Order #{{ order.confirmationNumber }}</h3>
-          <p class="order-date">{{ order.createdAt | date:'medium' }}</p>
+  <!-- Orders List Panel -->
+  <div class="orders-list-panel">
+
+        <div class="orders-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ 'orders.orderNumber' | translate }}</th>
+                <th>{{ 'orders.date' | translate }}</th>
+                <th>{{ 'orders.customer' | translate }}</th>
+                <th>{{ 'orders.status' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="loading">
+                <td colspan="4" class="loading-cell">
+                  <div class="loading-spinner"></div>
+                  Loading orders...
+                </td>
+              </tr>
+              <tr *ngIf="!loading && orders.length === 0">
+                <td colspan="4" class="empty-cell">
+                  No orders found
+                </td>
+              </tr>
+              <tr *ngFor="let order of orders" 
+                  class="order-row" 
+                  [class.selected]="selectedOrder?.id === order.id"
+                  (click)="selectOrder(order)">
+                <td>{{ order.confirmationNumber }}</td>
+                <td>{{ order.createdAt | date:'dd.MM.yyyy' }}</td>
+                <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
+                <td>
+                  <div class="status-cell">
+                    <span class="status-icon" [ngClass]="getStatusIconClass(order.status)">
+                      <svg *ngIf="order.status === 'TRANSFER_SUCCESSFUL'" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <svg *ngIf="order.status === 'TRANSFER_STARTED' || order.status === 'IN_TRANSFER'" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <svg *ngIf="order.status === 'TRANSFER_FAILED' || order.status === 'CANCELED'" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <svg *ngIf="order.status === 'PENDING' || order.status === 'TRANSFER_ON_HOLD'" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    <span>{{ getStatusText(order.status) }}</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="order-status">
-          <span class="status-badge" [ngClass]="getStatusClass(order.status)">
-            {{ getStatusText(order.status) }}
+
+        <div *ngIf="!loading && totalPages > 1" class="pagination">
+          <button 
+            class="page-btn" 
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(currentPage - 1)">
+            Previous
+          </button>
+          
+          <span class="page-info">
+            Page {{ currentPage + 1 }} of {{ totalPages }}
           </span>
+          
+          <button 
+            class="page-btn" 
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(currentPage + 1)">
+            Next
+          </button>
         </div>
+  </div>
+
+  <!-- Bottom Panel: Order Details -->
+    <div class="order-details-panel">
+      <h2>{{ 'orders.orderDetails' | translate }}</h2>
+      
+      <div *ngIf="!selectedOrder" class="no-order-selected">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="8" height="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="13" y="3" width="8" height="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="3" y="13" width="8" height="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="17" cy="17" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 21L19.5 19.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>No Order selected</h3>
+        <p>Please select an Order to see all Order details.</p>
       </div>
 
-      <div class="order-details">
-        <div class="customer-info">
-          <h4>Customer</h4>
-          <p>{{ order.customer.firstName }} {{ order.customer.lastName }}</p>
-          <p>{{ order.customer.email }}</p>
-          <p>{{ order.customer.address.line1 }}, {{ order.customer.address.city }}</p>
+      <div *ngIf="selectedOrder" class="order-details-content">
+        <!-- Order Header -->
+        <div class="order-header-info">
+          <div class="order-title">
+            <h2>{{ 'orders.order' | translate }} #{{ selectedOrder.confirmationNumber }} - {{ selectedOrder.customer.firstName }} {{ selectedOrder.customer.lastName }}</h2>
+            <p class="order-date">{{ selectedOrder.createdAt | date:'dd.MM.yyyy HH:mm' }}</p>
+          </div>
+          <div class="order-status-info">
+            <span class="status-badge large" [ngClass]="getStatusClass(selectedOrder.status)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              {{ getStatusText(selectedOrder.status) }}
+            </span>
+            <p class="status-date">{{ 'orders.on' | translate }} {{ selectedOrder.createdAt | date:'dd.MM.yyyy HH:mm' }}</p>
+          </div>
         </div>
 
-        <div class="order-items">
-          <h4>Items ({{ order.items.length }})</h4>
-          <div *ngFor="let item of order.items" class="order-item">
-            <div class="item-info">
-                             <img [src]="item.product.image" 
-                    [alt]="item.product.description" 
-                    class="item-image"
-                    (error)="onImageError($event)">
-              <div class="item-details">
-                <span class="item-name">{{ item.product.description }}</span>
-                <span class="item-meta">ID: {{ item.product.id }} | EAN: {{ item.product.ean }}</span>
-                <span class="item-quantity">Quantity: {{ item.quantity }}</span>
+        <!-- Three Column Layout -->
+        <div class="order-info-grid">
+          <div class="info-column">
+            <h3>{{ 'orders.deliveryAddress' | translate }}</h3>
+            <p class="customer-name">{{ selectedOrder.customer.firstName }} {{ selectedOrder.customer.lastName }}</p>
+            <p>{{ selectedOrder.customer.address.line1 }}</p>
+            <p>{{ selectedOrder.customer.address.zipCode }} {{ selectedOrder.customer.address.city }}</p>
+          </div>
+
+          <div class="info-column">
+            <h3>{{ 'orders.paymentDetails' | translate }}</h3>
+            <div class="info-row">
+              <span>{{ 'orders.orderTotal' | translate }}:</span>
+              <span class="value">{{ selectedOrder.finalTotal | currency:'EUR':'symbol':'1.2-2' }}</span>
+            </div>
+            <div class="info-row">
+              <span>{{ 'orders.paymentMethod' | translate }}:</span>
+              <span class="value">{{ selectedOrder.payment.name }}</span>
+            </div>
+            <div class="info-row">
+              <span>{{ 'orders.paymentStatus' | translate }}:</span>
+              <span class="value">{{ 'orders.paid' | translate }}</span>
+            </div>
+          </div>
+
+          <div class="info-column">
+            <h3>{{ 'orders.shipmentDetails' | translate }}</h3>
+            <div class="info-row">
+              <span>{{ 'orders.deliveryOption' | translate }}:</span>
+              <span class="value">{{ selectedOrder.shipping?.name || 'Standard Shipping' }}</span>
+            </div>
+            <div class="info-row">
+              <span>{{ 'orders.expectedDeliveryDate' | translate }}:</span>
+              <span class="value">{{ selectedOrder.shipping?.estimatedDelivery || (selectedOrder.createdAt | date:'dd.MM.yyyy') }}</span>
+            </div>
+            <div class="info-row">
+              <span>{{ 'orders.numberOfPackages' | translate }}:</span>
+              <span class="value">1/1</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Order Items Section -->
+        <div class="order-items-section">
+          <h3 class="section-title" (click)="toggleOrderItems()">
+            {{ 'orders.orderItems' | translate }}
+            <span class="items-count">({{ selectedOrder.items?.length || 0 }})</span>
+            <svg class="toggle-icon" [class.collapsed]="collapseOrderItems" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </h3>
+
+          <div class="order-items-table" *ngIf="!collapseOrderItems">
+            <div *ngIf="loadingItems" class="loading-items">
+              <div class="loading-spinner"></div>
+              {{ 'orders.loadingItems' | translate }}
+            </div>
+            <div *ngIf="!loadingItems && (!selectedOrder.items || selectedOrder.items.length === 0)" class="no-items">
+              {{ 'orders.noItems' | translate }}
+            </div>
+            <div *ngIf="!loadingItems && selectedOrder.items && selectedOrder.items.length > 0">
+              <!-- Column Headers -->
+              <div class="items-header">
+                <div class="header-image"></div>
+                <div class="header-product">{{ 'orders.product' | translate }}</div>
+                <div class="header-quantity">{{ 'orders.quantity' | translate }}</div>
+                <div class="header-unit-price">{{ 'orders.unitPrice' | translate }}</div>
+                <div class="header-total">{{ 'orders.totalPrice' | translate }}</div>
+              </div>
+              
+              <!-- Items -->
+              <div *ngFor="let item of selectedOrder.items" class="order-item-row">
+                <img [src]="item.product.image" 
+                     [alt]="item.product.description" 
+                     class="product-image"
+                     (error)="onImageError($event)">
+                <div class="product-info">
+                  <h4>{{ item.product.description }}</h4>
+                  <p class="product-meta">
+                    <span>ID: {{ item.product.id }}</span>
+                    <span *ngIf="item.product.ean">EAN: {{ item.product.ean }}</span>
+                  </p>
+                </div>
+                <div class="quantity">{{ item.quantity }} {{ 'orders.pieces' | translate }}</div>
+                <div class="unit-price">{{ item.price | currency:'EUR':'symbol':'1.2-2' }}</div>
+                <div class="total-price">{{ (item.total || item.price * item.quantity) | currency:'EUR':'symbol':'1.2-2' }}</div>
               </div>
             </div>
-            <div class="item-pricing">
-              <span class="item-price">{{ item.price | currency:'EUR':'symbol':'1.2-2' }}</span>
-              <span class="item-total">{{ item.total | currency:'EUR':'symbol':'1.2-2' }}</span>
+          </div>
+
+          <!-- Totals -->
+          <div class="order-totals">
+            <div class="total-row">
+              <span>{{ 'orders.totalPrice' | translate }}</span>
+              <span>{{ selectedOrder.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
+            </div>
+            <div class="total-row">
+              <span>{{ 'orders.shipment' | translate }}</span>
+              <span>{{ (selectedOrder.shippingCost || selectedOrder.shipping?.price || 0) | currency:'EUR':'symbol':'1.2-2' }}</span>
+            </div>
+            <div class="total-row grand-total">
+              <span>{{ 'orders.total' | translate }}</span>
+              <span>{{ selectedOrder.finalTotal | currency:'EUR':'symbol':'1.2-2' }}</span>
             </div>
           </div>
         </div>
 
-        <div class="order-summary">
-          <h4>Order Summary</h4>
-          <div class="summary-row">
-            <span>Subtotal:</span>
-            <span>{{ order.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
-          </div>
-          <div class="summary-row">
-            <span>Discount:</span>
-            <span>-{{ order.discount | currency:'EUR':'symbol':'1.2-2' }}</span>
-          </div>
-          <div class="summary-row">
-            <span>Shipping:</span>
-            <span>{{ order.shippingCost | currency:'EUR':'symbol':'1.2-2' }}</span>
-          </div>
-          <div class="summary-row total">
-            <span>Total:</span>
-            <span>{{ order.finalTotal | currency:'EUR':'symbol':'1.2-2' }}</span>
+        <!-- Order Activities Section -->
+        <div class="order-activities-section">
+          <h3 class="section-title" (click)="toggleOrderActivities()">
+            {{ 'orders.orderActivities' | translate }}
+            <svg class="toggle-icon" [class.collapsed]="collapseOrderActivities" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </h3>
+
+          <div class="activities-timeline" *ngIf="!collapseOrderActivities">
+            <div class="activity-item" *ngIf="selectedOrder.status === 'TRANSFER_SUCCESSFUL'">
+              <div class="activity-indicator active"></div>
+              <div class="activity-content">
+                <div class="activity-icon">
+                  <!-- hand_package icon - simplified -->
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 7H16V3H8V7H4C3.45 7 3 7.45 3 8V19C3 19.55 3.45 20 4 20H20C20.55 20 21 19.55 21 19V8C21 7.45 20.55 7 20 7ZM10 5H14V7H10V5ZM5 18V9H19V18H5Z" fill="currentColor"/>
+                    <path d="M12 11L8 15H11V17H13V15H16L12 11Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <span class="activity-text">{{ 'orders.orderDelivered' | translate }}</span>
+                <span class="activity-date">{{ selectedOrder.createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
+              </div>
+            </div>
+
+            <div class="activity-item" *ngIf="selectedOrder.status === 'IN_TRANSFER' || selectedOrder.status === 'TRANSFER_SUCCESSFUL'">
+              <div class="activity-indicator active"></div>
+              <div class="activity-content">
+                <div class="activity-icon">
+                  <!-- local_shipping icon - simplified -->
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 8H17V4H3C1.9 4 1 4.9 1 6V17H3C3 18.1 3.9 19 5 19C6.1 19 7 18.1 7 17H15C15 18.1 15.9 19 17 19C18.1 19 19 18.1 19 17H21V12L20 8ZM3 15V6H15V15H3ZM5 18C4.45 18 4 17.55 4 17C4 16.45 4.45 16 5 16C5.55 16 6 16.45 6 17C6 17.55 5.55 18 5 18ZM17 18C16.45 18 16 17.55 16 17C16 16.45 16.45 16 17 16C17.55 16 18 16.45 18 17C18 17.55 17.55 18 17 18ZM19.5 9.5L20.96 12H17V9.5H19.5Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <span class="activity-text">{{ 'orders.orderShipped' | translate }}</span>
+                <span class="activity-date">{{ selectedOrder.createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
+              </div>
+            </div>
+
+            <div class="activity-item">
+              <div class="activity-indicator active"></div>
+              <div class="activity-content">
+                <div class="activity-icon">
+                  <!-- box icon -->
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7V17C2 17.55 2.2 18.05 2.6 18.45C3 18.85 3.45 19.05 4 19.05H20C20.55 19.05 21.05 18.85 21.45 18.45C21.85 18.05 22.05 17.55 22.05 17V7L12 2ZM12 4.15L19.25 8H12L4.75 8L12 4.15ZM4 17V10H11V17H4ZM20 17H13V10H20V17Z"/>
+                  </svg>
+                </div>
+                <span class="activity-text">{{ 'orders.fulfillmentInitiated' | translate }}</span>
+                <span class="activity-date">{{ selectedOrder.createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
+              </div>
+            </div>
+
+            <div class="activity-item">
+              <div class="activity-indicator active"></div>
+              <div class="activity-content">
+                <div class="activity-icon">
+                  <!-- list_alt_check icon -->
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19Z"/>
+                    <path d="M17.99 9L16.58 7.58L9.99 14.17L7.41 11.6L5.99 13.01L9.99 17.01L17.99 9Z"/>
+                    <path d="M7 7H17V9H7V7Z"/>
+                    <path d="M7 11H17V13H7V11Z"/>
+                    <path d="M7 15H13V17H7V15Z"/>
+                  </svg>
+                </div>
+                <span class="activity-text">{{ 'orders.orderPlaced' | translate }}</span>
+                <span class="activity-date">{{ selectedOrder.createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
-      <div class="order-actions">
-        <button class="action-btn secondary">View Details</button>
-        <button class="action-btn secondary">Download Invoice</button>
-        <button *ngIf="order.status === 'confirmed'" class="action-btn danger">Cancel Order</button>
-      </div>
     </div>
-  </div>
 </div> 

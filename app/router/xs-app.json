@@ -1,5 +1,5 @@
 {
-  "welcomeFile": "/index.html",
+  "welcomeFile": "index.html",
   "authenticationMethod": "route",
   "logout": {
     "logoutEndpoint": "/do/logout"
@@ -26,6 +26,19 @@
       "source": "^/assets/(.*)$",
       "localDir": "resources/browser",
       "authenticationType": "none"
+    },
+    {
+      "source": "^/index.html$",
+      "localDir": "resources/browser",
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.OrderViewer"
+    },
+    {
+      "source": "^/$",
+      "target": "index.html",
+      "localDir": "resources/browser",
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.OrderViewer"
     },
     {
       "source": "^/(new-order|orders|settings|unauthorized)$",
