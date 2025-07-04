@@ -36,6 +36,7 @@ modules:
     parameters:
       memory: 512M
       disk-quota: 512M
+      buildpack: nodejs_buildpack
       env:
         # Default Store Configuration
         DEFAULT_STORE_ID: STORE001
@@ -58,6 +59,7 @@ modules:
     requires:
       - name: InStoreOrderCreationApp-auth
       - name: InStoreOrderCreationApp-destination
+      - name: InStoreOrderCreationApp-connectivity
       - name: opps-credentials
       - name: omsa-credentials
       - name: omf-credentials
@@ -82,6 +84,11 @@ resources:
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
+      service-plan: lite
+  - name: InStoreOrderCreationApp-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
       service-plan: lite
   - name: opps-credentials
     type: org.cloudfoundry.existing-service

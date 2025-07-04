@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
+const { executeHttpRequest } = require('@sap-cloud-sdk/http-client');
 
 // Load environment variables from env.local file for local development
 if (!process.env.VCAP_SERVICES) {
@@ -52,112 +53,49 @@ try {
   console.error('Error loading xsenv:', error.message);
 }
 
-// Helper function to get destination configuration
-async function getDestinationConfig() {
-  if (isCloudFoundry) {
-    // In Cloud Foundry, use destination service directly
-    const services = xsenv.getServices({
-      destination: { tag: 'destination' },
-      connectivity: { tag: 'connectivity' },
-      xsuaa: { tag: 'xsuaa' }
-    });
+// Helper function to execute S/4HANA requests via SAP Cloud SDK
+async function executeS4HanaRequest(path, options = {}) {
+  try {
+    console.log('Using SAP Cloud SDK to connect to destination RS4');
     
-    // Get access token for destination service
-    const tokenResponse = await axios.post(
-      `${services.xsuaa.url}/oauth/token`,
-      'grant_type=client_credentials',
-      {
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${services.xsuaa.clientid}:${services.xsuaa.clientsecret}`).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
-    );
+    // Build the URL with properly encoded query parameters
+    let fullUrl = path;
+    if (options.params && Object.keys(options.params).length > 0) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, value]) => {
+        searchParams.append(key, value);
+      });
+      fullUrl = `${path}?${searchParams.toString()}`;
+    }
     
-    const accessToken = tokenResponse.data.access_token;
-    
-    // Get destination configuration
-    const destResponse = await axios.get(
-      `${services.destination.uri}/destination-configuration/v1/destinations/RS4`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      }
-    );
-    
-    const destination = destResponse.data;
-    
-    return {
-      url: destination.destinationConfiguration.URL,
+    const requestConfig = {
+      method: 'GET',
+      url: fullUrl,
       headers: {
-        'Authorization': `${destination.authTokens[0].type} ${destination.authTokens[0].value}`
-      }
-    };
-  } else {
-    // Local development - use direct connection to S/4HANA
-    console.log('Local development mode - using direct S/4HANA connection');
-    
-    // Get credentials from environment variables or use defaults
-    const username = process.env.S4HANA_USERNAME || 'YOUR_USERNAME_HERE';
-    const password = process.env.S4HANA_PASSWORD || 'YOUR_PASSWORD_HERE';
-    
-    // Direct connection to MERCHANDISE.REALCORE.DE
-    return {
-      url: 'http://MERCHANDISE.REALCORE.DE:8000',
-      headers: {
-        'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       }
     };
+    
+    console.log('Executing request via Cloud SDK:', requestConfig);
+    
+    const response = await executeHttpRequest(
+      { destinationName: 'RS4' },
+      requestConfig
+    );
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error in executeS4HanaRequest:', error.message);
+    throw error;
   }
 }
 
-// Helper function to fetch data from on-premise system
+// Helper function to fetch data from on-premise system (using SAP Cloud SDK)
 async function fetchFromOnPremise(path, options = {}) {
   try {
-    if (!isCloudFoundry) {
-      // For local development, direct connection
-      console.log('Local development mode - direct S/4HANA connection');
-    }
-
-    const config = await getDestinationConfig();
-    
-    // Build full URL
-    const url = `${config.url}${path}`;
-    
-    // Build query string if params provided
-    let queryString = '';
-    if (options.params) {
-      const params = new URLSearchParams();
-      // Add format=json by default for OData
-      params.append('$format', 'json');
-      
-      // Add other parameters
-      Object.entries(options.params).forEach(([key, value]) => {
-        params.append(key, value);
-      });
-      
-      queryString = '?' + params.toString();
-    }
-    
-    const fullUrl = url + queryString;
-    console.log('Fetching from:', fullUrl);
-    
-    const requestConfig = {
-      headers: config.headers,
-      proxy: false
-    };
-    
-    // Only add agent for Cloud Foundry (if needed)
-    if (config.agent) {
-      requestConfig.httpsAgent = config.agent;
-    }
-    
-    const response = await axios.get(fullUrl, requestConfig);
-    
-    return response.data;
+    console.log('Fetching from S/4HANA:', path);
+    return await executeS4HanaRequest(path, options);
   } catch (error) {
     console.error('Error in fetchFromOnPremise:', error.message);
     if (error.response) {
@@ -183,34 +121,51 @@ function transformProduct(s4Product, description = '') {
   };
 }
 
-// Helper function to fetch product descriptions
-async function fetchProductDescriptions(productIds, config) {
+// Helper function to fetch product descriptions with language preference
+async function fetchProductDescriptions(productIds, preferredLanguage = 'EN') {
   try {
     if (productIds.length === 0) return {};
     
-    const filter = productIds.map(id => `Product eq '${id}'`).join(' or ');
-    
-    const requestConfig = {
-      headers: config.headers,
-      proxy: false
-    };
-    
-    // Only add agent for Cloud Foundry (if needed)
-    if (config.agent) {
-      requestConfig.httpsAgent = config.agent;
-    }
-    
-    const response = await axios.get(
-      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_ProductDescription?$format=json&$filter=(${filter}) and Language eq 'EN'`,
-      requestConfig
-    );
-    
     const descriptions = {};
-    if (response.data && response.data.d && response.data.d.results) {
-      response.data.d.results.forEach(desc => {
-        descriptions[desc.Product] = desc.ProductDescription;
-      });
+    
+    // Fetch descriptions for each product using navigation property
+    for (const productId of productIds) {
+      try {
+        const data = await executeS4HanaRequest(`/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')/to_Description`, {
+          params: {}
+        });
+        
+        if (data && data.d && data.d.results) {
+          const availableDescriptions = data.d.results;
+          let selectedDescription = '';
+          
+          // Language selection logic:
+          // 1. Try preferred language first
+          let preferredDesc = availableDescriptions.find(desc => desc.Language === preferredLanguage);
+          if (preferredDesc) {
+            selectedDescription = preferredDesc.ProductDescription;
+          } else {
+            // 2. If preferred language not found, try English
+            let englishDesc = availableDescriptions.find(desc => desc.Language === 'EN');
+            if (englishDesc) {
+              selectedDescription = englishDesc.ProductDescription;
+            } else {
+              // 3. If English not found, take the first available description
+              if (availableDescriptions.length > 0) {
+                selectedDescription = availableDescriptions[0].ProductDescription;
+              }
+            }
+          }
+          
+          descriptions[productId] = selectedDescription;
+          console.log(`Product ${productId}: Using description "${selectedDescription}" (language priority: ${preferredLanguage} -> EN -> first available)`);
+        }
+      } catch (error) {
+        console.error(`Error fetching description for product ${productId}:`, error.message);
+        descriptions[productId] = `Product ${productId}`; // Fallback
+      }
     }
+    
     return descriptions;
   } catch (error) {
     console.error('Error fetching product descriptions:', error.message);
@@ -626,210 +581,84 @@ app.get('/api/sourcing/cache', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   const searchQuery = req.query.search || '';
   
-  // Use enhanced mock data with OPPS pricing (for both Cloud Foundry and local development)
-  if (isCloudFoundry || true) { // Always use enhanced products for now
-    console.log('Using enhanced mock data with OPPS pricing integration');
-    
-    // Enhanced mock products with OPPS pricing integration
-    const baseMockProducts = [
-      {
-        id: '118',
-        ean: '9780201379631',
-        description: 'RBO Flaschenöffner',
-        unit: 'PC',
-        image: '/api/images/products/118.jpg',
-        inStoreStock: 25,
-        onlineStock: 75,
-        isAvailable: true
-      },
-      {
-        id: '29',
-        ean: '9999999999987',
-        description: 'RBO pen',
-        unit: 'PC',
-        image: '/api/images/products/29.jpg',
-        inStoreStock: 120,
-        onlineStock: 200,
-        isAvailable: true
-      },
-      {
-        id: '32',
-        ean: '7321232123811',
-        description: 'RBO Notizbuch',
-        unit: 'PC',
-        image: '/api/images/products/32.jpg',
-        inStoreStock: 45,
-        onlineStock: 150,
-        isAvailable: true
-      },
-      {
-        id: '33',
-        ean: '9999999999963',
-        description: 'RBO Bag',
-        unit: 'PC',
-        image: '/api/images/products/33.jpg',
-        inStoreStock: 18,
-        onlineStock: 35,
-        isAvailable: true
-      },
-      {
-        id: '116',
-        ean: '9780201379600',
-        description: 'RBO Gas cylinder',
-        unit: 'PC',
-        image: '/api/images/products/116.jpg',
-        inStoreStock: 8,
-        onlineStock: 20,
-        isAvailable: true
-      },
-      {
-        id: '130',
-        ean: '1234567890123',
-        description: 'RBO Special Item',
-        unit: 'PC',
-        image: '/api/images/products/130.jpg',
-        inStoreStock: 15,
-        onlineStock: 45,
-        isAvailable: true
-      },
-      {
-        id: '128',
-        ean: '1234567890128',
-        description: 'RBO Test Item with Availability',
-        unit: 'PC',
-        image: '/api/images/products/128.jpg',
-        inStoreStock: 50,
-        onlineStock: 100,
-        isAvailable: true
-      }
-    ];
-
-    // Enrich mock products with real OPPS pricing
-    const mockProducts = [];
-    const refreshPrices = req.query.refresh === 'true' || req.query.force === 'true';
-    
-    // Smart price refresh logic: refresh on search but respect caching for performance
-    // This will trigger the OPPS service's session-based refresh logic
-    const searchOptions = {
-      storeId: req.query.storeId || process.env.DEFAULT_STORE_ID,
-      forceRefresh: refreshPrices,
-      // Use real-time pricing for individual searches (when search is specific)
-      batchMode: !searchQuery || searchQuery.trim().length === 0
-    };
-    
-    for (const product of baseMockProducts) {
-      try {
-        // Get real pricing from OPPS for this product
-        const oppsPricing = await oppsService.getProductPricing(product.id, searchOptions);
-        
-        if (oppsPricing && oppsPricing[product.id]) {
-          // Use real OPPS pricing
-          mockProducts.push({
-            ...product,
-            listPrice: oppsPricing[product.id].listPrice,
-            salePrice: oppsPricing[product.id].salePrice,
-            currency: oppsPricing[product.id].currency,
-            priceSource: 'OPPS'
-          });
-          console.log(`Product ${product.id}: Using OPPS price €${oppsPricing[product.id].listPrice}`);
-        } else {
-          // Fallback to default pricing
-          mockProducts.push({
-            ...product,
-            listPrice: 19.99,
-            salePrice: 19.99,
-            currency: 'EUR',
-            priceSource: 'fallback'
-          });
-          console.log(`Product ${product.id}: Using fallback price €19.99`);
-        }
-      } catch (error) {
-        // Fallback pricing on error
-        mockProducts.push({
-          ...product,
-          listPrice: 19.99,
-          salePrice: 19.99,
-          currency: 'EUR',
-          priceSource: 'fallback-error'
-        });
-        console.log(`Product ${product.id}: Error getting OPPS price, using fallback`);
-      }
-    }
-    
-    // Filter products based on search query
-    let filtered = searchQuery 
-      ? mockProducts.filter(p => 
-          p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.ean.includes(searchQuery) ||
-          p.id.includes(searchQuery)
-        )
-      : mockProducts;
-    
-    // Limit to maximum 5 results for search
-    if (searchQuery && filtered.length > 5) {
-      filtered = filtered.slice(0, 5);
-    }
-    
-    res.json({
-      products: filtered,
-      totalCount: filtered.length
-    });
-    return;
-  }
-  
-  // For local development, try to connect to S/4HANA
   try {
-    // First, check if we can connect
-    const config = await getDestinationConfig();
+    // Escape single quotes in search query (declare at top level for use in catch blocks)
+    const escapedQuery = searchQuery.replace(/'/g, "''");
     
-    // For now, don't filter at OData level - fetch all and filter in memory
-    // This is because descriptions are fetched separately
-    const requestConfig = {
-      params: {
-        '$format': 'json',
-        '$top': '100', // Increased to get more products
-        '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
-      },
-      headers: config.headers,
-      proxy: false
+    // Build request parameters (no $format - using Accept header instead)
+    const requestParams = {
+      '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
     };
     
-    // Only add agent for Cloud Foundry (if needed)
-    if (config.agent) {
-      requestConfig.httpsAgent = config.agent;
+    // If search query is provided, use direct OData filtering
+    if (searchQuery) {
+      // Build filter for substring search on Product ID or ProductStandardID (EAN)
+      // Use OData v2 substringof function (SAP typically uses OData v2)
+      const filter = `substringof('${escapedQuery}',Product) eq true or substringof('${escapedQuery}',ProductStandardID) eq true`;
+      requestParams['$filter'] = filter;
+      requestParams['$top'] = '10'; // Limit search results
+    } else {
+      // If no search, return empty results (don't prefetch all products)
+      return res.json({
+        products: [],
+        totalCount: 0,
+        message: 'Please enter a search term to find products'
+      });
     }
     
-    // Fetch products from S/4HANA
-    const response = await axios.get(
-      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product`,
-      requestConfig
-    );
-
-    const products = response.data.d?.results || [];
+    console.log('Searching products with filter:', requestParams['$filter']);
     
-    // Fetch descriptions for all products
+    let data;
+    let products = [];
+    
+    try {
+      // Try the substringof filter first
+      data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+        params: requestParams
+      });
+      products = data.d?.results || [];
+    } catch (filterError) {
+      console.log('Substringof filter failed, trying startswith filter:', filterError.message);
+      
+      // Fallback to startswith if substringof doesn't work
+      const startswithFilter = `startswith(Product,'${escapedQuery}') eq true or startswith(ProductStandardID,'${escapedQuery}') eq true`;
+      requestParams['$filter'] = startswithFilter;
+      
+      try {
+        data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+          params: requestParams
+        });
+        products = data.d?.results || [];
+      } catch (startswithError) {
+        console.log('Startswith filter also failed, trying exact match:', startswithError.message);
+        
+        // Final fallback: exact match
+        const exactFilter = `Product eq '${escapedQuery}' or ProductStandardID eq '${escapedQuery}'`;
+        requestParams['$filter'] = exactFilter;
+        
+        try {
+          data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+            params: requestParams
+          });
+          products = data.d?.results || [];
+        } catch (exactError) {
+          console.log('All filter attempts failed:', exactError.message);
+          throw exactError;
+        }
+      }
+    }
+    
+    // Fetch descriptions for found products with language preference
     const productIds = products.map(p => p.Product);
-    const descriptions = await fetchProductDescriptions(productIds, config);
+    const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
+    const descriptions = await fetchProductDescriptions(productIds, preferredLanguage);
     
     // Transform products with descriptions
-    let transformedProducts = products.map(p => 
+    const transformedProducts = products.map(p => 
       transformProduct(p, descriptions[p.Product])
     );
     
-    // Filter products based on search query
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
-      transformedProducts = transformedProducts.filter(p => 
-        p.description.toLowerCase().includes(searchLower) ||
-        p.ean.toLowerCase().includes(searchLower) ||
-        p.id.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // Limit to maximum 5 results for search
-    if (searchQuery && transformedProducts.length > 5) {
-      transformedProducts = transformedProducts.slice(0, 5);
-    }
+    console.log(`Found ${transformedProducts.length} products for search: "${searchQuery}"`);
     
     res.json({
       products: transformedProducts,
@@ -842,70 +671,12 @@ app.get('/api/products', async (req, res) => {
       console.error('Response data:', error.response.data);
     }
     
-    // Return mock data as fallback for local development
-    const mockProducts = [
-      {
-        id: '1',
-        ean: '4006381333634',
-        description: 'Stabilo Boss Highlighter Yellow',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/1.jpg',
-        inStoreStock: 45,
-        onlineStock: 120,
-        isAvailable: true
-      },
-      {
-        id: '2',
-        ean: '4006381333641',
-        description: 'Stabilo Boss Highlighter Pink',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/2.jpg',
-        inStoreStock: 32,
-        onlineStock: 89,
-        isAvailable: true
-      },
-      {
-        id: '3',
-        ean: '4006381333658',
-        description: 'Stabilo Boss Highlighter Green',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/3.jpg',
-        inStoreStock: 28,
-        onlineStock: 95,
-        isAvailable: true
-      },
-      {
-        id: '4',
-        ean: '2050000000010',
-        description: 'Test Product from S/4HANA',
-        listPrice: 19.99,
-        unit: 'ST',
-        image: '/api/images/products/4.jpg',
-        inStoreStock: 15,
-        onlineStock: 50,
-        isAvailable: true
-      }
-    ];
-    
-    let filtered = searchQuery 
-      ? mockProducts.filter(p => 
-          p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.ean.includes(searchQuery) ||
-          p.id.includes(searchQuery)
-        )
-      : mockProducts;
-    
-    // Limit to maximum 5 results for search
-    if (searchQuery && filtered.length > 5) {
-      filtered = filtered.slice(0, 5);
-    }
-    
-    res.json({
-      products: filtered,
-      totalCount: filtered.length
+    // Return error response - no more mock data fallback
+    res.status(500).json({
+      error: 'Failed to fetch products from S/4HANA',
+      message: error.message,
+      products: [],
+      totalCount: 0
     });
   }
 });
@@ -913,194 +684,19 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/:id', async (req, res) => {
   const productId = req.params.id;
   
-  // Use enhanced mock data with OPPS pricing (for both Cloud Foundry and local development)
-  if (isCloudFoundry || true) { // Always use enhanced products for now
-    console.log('Using enhanced mock data with OPPS pricing - Product ID:', productId);
-    
-    const baseMockProducts = {
-      '118': {
-        id: '118',
-        ean: '9780201379631',
-        description: 'RBO Flaschenöffner',
-        unit: 'PC',
-        image: '/api/images/products/118.jpg',
-        inStoreStock: 25,
-        onlineStock: 75,
-        isAvailable: true
-      },
-      '29': {
-        id: '29',
-        ean: '9999999999987',
-        description: 'RBO pen',
-        unit: 'PC',
-        image: '/api/images/products/29.jpg',
-        inStoreStock: 120,
-        onlineStock: 200,
-        isAvailable: true
-      },
-      '32': {
-        id: '32',
-        ean: '7321232123811',
-        description: 'RBO Notizbuch',
-        unit: 'PC',
-        image: '/api/images/products/32.jpg',
-        inStoreStock: 45,
-        onlineStock: 150,
-        isAvailable: true
-      },
-      '33': {
-        id: '33',
-        ean: '9999999999963',
-        description: 'RBO Bag',
-        unit: 'PC',
-        image: '/api/images/products/33.jpg',
-        inStoreStock: 18,
-        onlineStock: 35,
-        isAvailable: true
-      },
-      '116': {
-        id: '116',
-        ean: '9780201379600',
-        description: 'RBO Gas cylinder',
-        unit: 'PC',
-        image: '/api/images/products/116.jpg',
-        inStoreStock: 8,
-        onlineStock: 20,
-        isAvailable: true
-      },
-      '130': {
-        id: '130',
-        ean: '1234567890123',
-        description: 'RBO Special Item',
-        unit: 'PC',
-        image: '/api/images/products/130.jpg',
-        inStoreStock: 15,
-        onlineStock: 45,
-        isAvailable: true
-      },
-      '128': {
-        id: '128',
-        ean: '1234567890128',
-        description: 'RBO Test Item with Availability',
-        unit: 'PC',
-        image: '/api/images/products/128.jpg',
-        inStoreStock: 50,
-        onlineStock: 100,
-        isAvailable: true
-      }
-    };
-    
-    const baseProduct = baseMockProducts[productId];
-    if (!baseProduct) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
-    
-    try {
-      // Force refresh for individual product requests (real-time pricing and availability)
-      const refreshPrices = req.query.refresh === 'true' || req.query.force === 'true';
-      
-      console.log(`Fetching real-time data for product ${productId}`);
-      
-      // Get real pricing from OPPS for this product
-      const oppsPricing = await oppsService.getProductPricing(productId, { 
-        storeId: req.query.storeId || process.env.DEFAULT_STORE_ID,
-        forceRefresh: refreshPrices,
-        batchMode: false // Force individual real-time pricing
-      });
-      
-      // Get real availability from OMSA for this product
-      const omsaAvailability = await omsaService.getProductAvailabilityFromAPI(productId, {
-        forceRefresh: refreshPrices
-      });
-      
-      let enrichedProduct = { ...baseProduct };
-      
-      // Apply OPPS pricing if available
-      if (oppsPricing && oppsPricing[productId]) {
-        enrichedProduct = {
-          ...enrichedProduct,
-          listPrice: oppsPricing[productId].listPrice,
-          salePrice: oppsPricing[productId].salePrice,
-          currency: oppsPricing[productId].currency,
-          priceSource: 'OPPS-RealTime'
-        };
-        console.log(`Product ${productId}: Using OPPS real-time price €${oppsPricing[productId].listPrice}`);
-      } else {
-        // Fallback to default pricing
-        enrichedProduct = {
-          ...enrichedProduct,
-          listPrice: 19.99,
-          salePrice: 19.99,
-          currency: 'EUR',
-          priceSource: 'fallback'
-        };
-        console.log(`Product ${productId}: Using fallback price €19.99`);
-      }
-      
-      // Apply OMSA availability if available
-      if (omsaAvailability) {
-        enrichedProduct = {
-          ...enrichedProduct,
-          inStoreStock: omsaAvailability.inStoreStock,
-          onlineStock: omsaAvailability.onlineStock,
-          totalStock: omsaAvailability.totalStock,
-          isAvailable: omsaAvailability.isAvailable,
-          availabilityDetails: {
-            sites: omsaAvailability.sites,
-            source: omsaAvailability.source,
-            lastUpdated: omsaAvailability.lastUpdated
-          }
-        };
-        console.log(`Product ${productId}: Using ${omsaAvailability.source} availability - In Store: ${omsaAvailability.inStoreStock}, Online: ${omsaAvailability.onlineStock}`);
-      } else {
-        console.log(`Product ${productId}: Using base availability data`);
-      }
-      
-      res.json(enrichedProduct);
-    } catch (error) {
-      // Fallback pricing on error
-      const enrichedProduct = {
-        ...baseProduct,
-        listPrice: 19.99,
-        salePrice: 19.99,
-        currency: 'EUR',
-        priceSource: 'fallback-error'
-      };
-      console.log(`Product ${productId}: Error getting OPPS price, using fallback`);
-      res.json(enrichedProduct);
-    }
-    return;
-  }
-  
-  // For local development, try to connect to S/4HANA
   try {
-    const config = await getDestinationConfig();
-    
-    const requestConfig = {
+    // Fetch specific product from S/4HANA using SAP Cloud SDK
+    const data = await executeS4HanaRequest(`/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')`, {
       params: {
-        '$format': 'json',
         '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
-      },
-      headers: config.headers,
-      proxy: false
-    };
-    
-    // Only add agent for Cloud Foundry (if needed)
-    if (config.agent) {
-      requestConfig.httpsAgent = config.agent;
-    }
-    
-    // Fetch specific product from S/4HANA
-    const response = await axios.get(
-      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')`,
-      requestConfig
-    );
+      }
+    });
 
-    if (response.data && response.data.d) {
-      // Fetch description for this product
-      const descriptions = await fetchProductDescriptions([productId], config);
-      const product = transformProduct(response.data.d, descriptions[productId]);
+    if (data && data.d) {
+      // Fetch description for this product with language preference
+      const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
+      const descriptions = await fetchProductDescriptions([productId], preferredLanguage);
+      const product = transformProduct(data.d, descriptions[productId]);
       res.json(product);
     } else {
       res.status(404).json({ error: 'Product not found' });
@@ -1108,38 +704,12 @@ app.get('/api/products/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching product:', error.message);
     
-    // Return mock data as fallback for local development
-    const mockProducts = {
-      '1': {
-        id: '1',
-        ean: '4006381333634',
-        description: 'Stabilo Boss Highlighter Yellow',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/1.jpg',
-        inStoreStock: 45,
-        onlineStock: 120,
-        isAvailable: true
-      },
-      '4': {
-        id: '4',
-        ean: '2050000000010',
-        description: 'Test Product from S/4HANA',
-        listPrice: 19.99,
-        unit: 'ST',
-        image: '/api/images/products/4.jpg',
-        inStoreStock: 15,
-        onlineStock: 50,
-        isAvailable: true
-      }
-    };
-    
-    const product = mockProducts[productId];
-    if (product) {
-      res.json(product);
-    } else {
-      res.status(404).json({ error: 'Product not found' });
-    }
+    // Return error response - no more mock data fallback
+    res.status(500).json({ 
+      error: 'Failed to fetch product from S/4HANA',
+      message: error.message,
+      productId: productId
+    });
   }
 });
 
@@ -1149,114 +719,24 @@ app.get('/api/products/scan/:ean', async (req, res) => {
   
   console.log('EAN scan request for:', ean);
   
-  // Use mock data for Cloud Foundry environment
-  if (isCloudFoundry) {
-    console.log('Using mock data for Cloud Foundry environment - EAN scan:', ean);
-    
-    const mockProducts = [
-      {
-        id: '118',
-        ean: '9780201379631',
-        description: 'RBO Flaschenöffner',
-        listPrice: 15.99,
-        unit: 'PC',
-        image: '/api/images/products/118.jpg',
-        inStoreStock: 25,
-        onlineStock: 75,
-        isAvailable: true
-      },
-      {
-        id: '29',
-        ean: '9999999999987',
-        description: 'RBO pen',
-        listPrice: 3.50,
-        unit: 'PC',
-        image: '/api/images/products/29.jpg',
-        inStoreStock: 120,
-        onlineStock: 200,
-        isAvailable: true
-      },
-      {
-        id: '32',
-        ean: '7321232123811',
-        description: 'RBO Notizbuch',
-        listPrice: 8.99,
-        unit: 'PC',
-        image: '/api/images/products/32.jpg',
-        inStoreStock: 45,
-        onlineStock: 150,
-        isAvailable: true
-      },
-      {
-        id: '33',
-        ean: '9999999999963',
-        description: 'RBO Bag',
-        listPrice: 29.99,
-        unit: 'PC',
-        image: '/api/images/products/33.jpg',
-        inStoreStock: 18,
-        onlineStock: 35,
-        isAvailable: true
-      },
-      {
-        id: '116',
-        ean: '9780201379600',
-        description: 'RBO Gas cylinder',
-        listPrice: 45.00,
-        unit: 'PC',
-        image: '/api/images/products/116.jpg',
-        inStoreStock: 8,
-        onlineStock: 20,
-        isAvailable: true
-      }
-    ];
-    
-    // Find product by exact EAN match
-    const product = mockProducts.find(p => p.ean === ean);
-    
-    if (product) {
-      console.log('Product found by EAN:', product.id, product.description);
-      res.json(product);
-    } else {
-      console.log('Product not found for EAN:', ean);
-      res.status(404).json({ error: 'Product not found', ean: ean });
-    }
-    return;
-  }
-  
-  // For local development, try to connect to S/4HANA
   try {
-    const config = await getDestinationConfig();
-    
-    const requestConfig = {
+    // Search products by EAN in S/4HANA using SAP Cloud SDK
+    const data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
       params: {
-        '$format': 'json',
         '$filter': `ProductStandardID eq '${ean}'`,
         '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
-      },
-      headers: config.headers,
-      proxy: false
-    };
-    
-    // Only add agent for Cloud Foundry (if needed)
-    if (config.agent) {
-      requestConfig.httpsAgent = config.agent;
-    }
-    
-    // Search products by EAN in S/4HANA
-    const response = await axios.get(
-      `${config.url}/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product`,
-      requestConfig
-    );
+      }
+    });
 
-    const products = response.data.d?.results || [];
+    const products = data.d?.results || [];
     
     if (products.length > 0) {
       // Get the first matching product
       const s4Product = products[0];
       
-      // Fetch description for this product
-      const descriptions = await fetchProductDescriptions([s4Product.Product], config);
+      // Fetch description for this product with language preference
+      const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
+      const descriptions = await fetchProductDescriptions([s4Product.Product], preferredLanguage);
       const product = transformProduct(s4Product, descriptions[s4Product.Product]);
       
       console.log('Product found by EAN in S/4HANA:', product.id, product.description);
@@ -1268,64 +748,12 @@ app.get('/api/products/scan/:ean', async (req, res) => {
   } catch (error) {
     console.error('Error scanning EAN:', error.message);
     
-    // Return mock data as fallback for local development
-    const mockProducts = [
-      {
-        id: '1',
-        ean: '4006381333634',
-        description: 'Stabilo Boss Highlighter Yellow',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/1.jpg',
-        inStoreStock: 45,
-        onlineStock: 120,
-        isAvailable: true
-      },
-      {
-        id: '2',
-        ean: '4006381333641',
-        description: 'Stabilo Boss Highlighter Pink',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/2.jpg',
-        inStoreStock: 32,
-        onlineStock: 89,
-        isAvailable: true
-      },
-      {
-        id: '3',
-        ean: '4006381333658',
-        description: 'Stabilo Boss Highlighter Green',
-        listPrice: 2.99,
-        unit: 'PC',
-        image: '/api/images/products/3.jpg',
-        inStoreStock: 28,
-        onlineStock: 95,
-        isAvailable: true
-      },
-      {
-        id: '4',
-        ean: '2050000000010',
-        description: 'Test Product from S/4HANA',
-        listPrice: 19.99,
-        unit: 'ST',
-        image: '/api/images/products/4.jpg',
-        inStoreStock: 15,
-        onlineStock: 50,
-        isAvailable: true
-      }
-    ];
-    
-    // Find product by exact EAN match
-    const product = mockProducts.find(p => p.ean === ean);
-    
-    if (product) {
-      console.log('Product found by EAN in fallback data:', product.id, product.description);
-      res.json(product);
-    } else {
-      console.log('Product not found for EAN in fallback data:', ean);
-      res.status(404).json({ error: 'Product not found', ean: ean });
-    }
+    // Return error response - no more mock data fallback
+    res.status(500).json({ 
+      error: 'Failed to scan EAN in S/4HANA',
+      message: error.message,
+      ean: ean
+    });
   }
 });
 
@@ -1334,6 +762,72 @@ app.get('/api/products/:id/image', (req, res) => {
   // In a real implementation, this would fetch from a document service
   // For now, return a placeholder or redirect to a default image
   res.redirect(`/assets/images/products/${req.params.id}.jpg`);
+});
+
+// Test endpoint to check destination connectivity
+app.get('/api/test-destination', async (req, res) => {
+  try {
+    console.log('Testing destination RS4 connectivity...');
+    
+    // Try different common S/4HANA OData service paths
+    const servicePaths = [
+      '/sap/opu/odata/sap/API_PRODUCT_SRV/$metadata',
+      '/sap/opu/odata/sap/API_PRODUCT_SRV',
+      '/sap/opu/odata/SAP/API_PRODUCT_SRV/$metadata',
+      '/sap/opu/odata/SAP/API_PRODUCT_SRV'
+    ];
+    
+    for (const servicePath of servicePaths) {
+      try {
+        console.log(`Trying service path: ${servicePath}`);
+        const data = await executeS4HanaRequest(servicePath, {
+          params: servicePath.includes('$metadata') ? {} : { '$top': '1' }
+        });
+        
+        console.log(`SUCCESS: Service path ${servicePath} is working!`);
+        return res.json({ 
+          status: 'success', 
+          message: `OData service found at path: ${servicePath}`,
+          workingPath: servicePath,
+          serviceAvailable: true
+        });
+      } catch (error) {
+        console.log(`Failed service path ${servicePath}: ${error.message}`);
+        continue;
+      }
+    }
+    
+    // If all service paths fail, try basic connectivity
+    try {
+      const fallbackData = await executeS4HanaRequest('/sap/bc/ping', {
+        params: {}
+      });
+      
+      console.log('Basic connectivity test successful');
+      res.json({ 
+        status: 'partial_success', 
+        message: 'Destination RS4 is reachable but OData service path not found',
+        basicConnectivity: true,
+        testedPaths: servicePaths
+      });
+    } catch (basicError) {
+      console.error('Basic connectivity test also failed:', basicError.message);
+      
+      res.status(500).json({ 
+        status: 'error', 
+        message: 'Destination RS4 connection failed',
+        testedPaths: servicePaths,
+        basicError: basicError.message
+      });
+    }
+  } catch (error) {
+    console.error('Test destination failed:', error.message);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Test destination failed',
+      error: error.message
+    });
+  }
 });
 
 // Error handling middleware
