@@ -213,6 +213,142 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
   };
 }
 
+// Search products by Product ID and ProductStandardID (EAN)
+async function searchProductsByFields(escapedQuery) {
+  const requestParams = {
+    '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit',
+    '$top': '10'
+  };
+  
+  try {
+    // Try substringof filter first
+    const filter = `substringof('${escapedQuery}',Product) eq true or substringof('${escapedQuery}',ProductStandardID) eq true`;
+    requestParams['$filter'] = filter;
+    
+    console.log('Searching products by fields with filter:', filter);
+    
+    const data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+      params: requestParams
+    });
+    return data.d?.results || [];
+  } catch (filterError) {
+    console.log('Substringof filter failed, trying startswith filter:', filterError.message);
+    
+    // Fallback to startswith if substringof doesn't work
+    const startswithFilter = `startswith(Product,'${escapedQuery}') eq true or startswith(ProductStandardID,'${escapedQuery}') eq true`;
+    requestParams['$filter'] = startswithFilter;
+    
+    try {
+      const data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+        params: requestParams
+      });
+      return data.d?.results || [];
+    } catch (startswithError) {
+      console.log('Startswith filter also failed, trying exact match:', startswithError.message);
+      
+      // Final fallback: exact match
+      const exactFilter = `Product eq '${escapedQuery}' or ProductStandardID eq '${escapedQuery}'`;
+      requestParams['$filter'] = exactFilter;
+      
+      try {
+        const data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
+          params: requestParams
+        });
+        return data.d?.results || [];
+      } catch (exactError) {
+        console.log('All product field filter attempts failed:', exactError.message);
+        return [];
+      }
+    }
+  }
+}
+
+// Search products by description using A_ProductDescription
+async function searchProductsByDescription(escapedQuery, preferredLanguage = 'EN') {
+  try {
+    console.log(`Searching product descriptions for: "${escapedQuery}" in language: ${preferredLanguage}`);
+    
+    // Build filter for description search
+    // Search in ProductDescription field with language preference
+    const descriptionFilter = `substringof('${escapedQuery}',ProductDescription) eq true and Language eq '${preferredLanguage}'`;
+    
+    const requestParams = {
+      '$select': 'Product,Language,ProductDescription',
+      '$filter': descriptionFilter,
+      '$top': '10'
+    };
+    
+    console.log('Searching descriptions with filter:', descriptionFilter);
+    
+    let descriptionData;
+    try {
+      // Try with preferred language first
+      descriptionData = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_ProductDescription', {
+        params: requestParams
+      });
+    } catch (langError) {
+      console.log(`Description search failed for language ${preferredLanguage}, trying without language filter:`, langError.message);
+      
+      // Fallback: search without language filter
+      const generalFilter = `substringof('${escapedQuery}',ProductDescription) eq true`;
+      requestParams['$filter'] = generalFilter;
+      
+      try {
+        descriptionData = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_ProductDescription', {
+          params: requestParams
+        });
+      } catch (generalError) {
+        console.log('Description search with substringof failed, trying startswith:', generalError.message);
+        
+        // Try startswith as fallback
+        const startswithFilter = `startswith(ProductDescription,'${escapedQuery}') eq true`;
+        requestParams['$filter'] = startswithFilter;
+        
+        try {
+          descriptionData = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_ProductDescription', {
+            params: requestParams
+          });
+        } catch (startswithError) {
+          console.log('All description filter attempts failed:', startswithError.message);
+          return [];
+        }
+      }
+    }
+    
+    const descriptions = descriptionData.d?.results || [];
+    console.log(`Found ${descriptions.length} matching descriptions`);
+    
+    if (descriptions.length === 0) {
+      return [];
+    }
+    
+    // Get unique product IDs from description results
+    const productIds = [...new Set(descriptions.map(d => d.Product))];
+    
+    // Fetch the actual product data for these IDs
+    const productPromises = productIds.map(async (productId) => {
+      try {
+        const productData = await executeS4HanaRequest(`/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')`, {
+          params: {
+            '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
+          }
+        });
+        return productData.d;
+      } catch (error) {
+        console.log(`Failed to fetch product ${productId}:`, error.message);
+        return null;
+      }
+    });
+    
+    const products = await Promise.all(productPromises);
+    return products.filter(p => p !== null);
+    
+  } catch (error) {
+    console.error('Error searching product descriptions:', error.message);
+    return [];
+  }
+}
+
 // API endpoints
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -585,18 +721,40 @@ app.get('/api/products', async (req, res) => {
     // Escape single quotes in search query (declare at top level for use in catch blocks)
     const escapedQuery = searchQuery.replace(/'/g, "''");
     
-    // Build request parameters (no $format - using Accept header instead)
-    const requestParams = {
-      '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit'
-    };
-    
     // If search query is provided, use direct OData filtering
     if (searchQuery) {
-      // Build filter for substring search on Product ID or ProductStandardID (EAN)
-      // Use OData v2 substringof function (SAP typically uses OData v2)
-      const filter = `substringof('${escapedQuery}',Product) eq true or substringof('${escapedQuery}',ProductStandardID) eq true`;
-      requestParams['$filter'] = filter;
-      requestParams['$top'] = '10'; // Limit search results
+      console.log(`Searching products for: "${searchQuery}"`);
+      
+      // Get language preference
+      const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
+      
+      // Search in both A_Product and A_ProductDescription
+      const [productResults, descriptionResults] = await Promise.all([
+        searchProductsByFields(escapedQuery),
+        searchProductsByDescription(escapedQuery, preferredLanguage)
+      ]);
+      
+      // Combine results and remove duplicates
+      const allProducts = [...productResults, ...descriptionResults];
+      const uniqueProducts = allProducts.filter((product, index, self) => 
+        index === self.findIndex(p => p.Product === product.Product)
+      );
+      
+      // Fetch descriptions for all found products
+      const productIds = uniqueProducts.map(p => p.Product);
+      const descriptions = await fetchProductDescriptions(productIds, preferredLanguage);
+      
+      // Transform products with descriptions
+      const transformedProducts = uniqueProducts.map(p => 
+        transformProduct(p, descriptions[p.Product])
+      );
+      
+      console.log(`Found ${transformedProducts.length} products for search: "${searchQuery}"`);
+      
+      res.json({
+        products: transformedProducts,
+        totalCount: transformedProducts.length
+      });
     } else {
       // If no search, return empty results (don't prefetch all products)
       return res.json({
@@ -605,65 +763,6 @@ app.get('/api/products', async (req, res) => {
         message: 'Please enter a search term to find products'
       });
     }
-    
-    console.log('Searching products with filter:', requestParams['$filter']);
-    
-    let data;
-    let products = [];
-    
-    try {
-      // Try the substringof filter first
-      data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
-        params: requestParams
-      });
-      products = data.d?.results || [];
-    } catch (filterError) {
-      console.log('Substringof filter failed, trying startswith filter:', filterError.message);
-      
-      // Fallback to startswith if substringof doesn't work
-      const startswithFilter = `startswith(Product,'${escapedQuery}') eq true or startswith(ProductStandardID,'${escapedQuery}') eq true`;
-      requestParams['$filter'] = startswithFilter;
-      
-      try {
-        data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
-          params: requestParams
-        });
-        products = data.d?.results || [];
-      } catch (startswithError) {
-        console.log('Startswith filter also failed, trying exact match:', startswithError.message);
-        
-        // Final fallback: exact match
-        const exactFilter = `Product eq '${escapedQuery}' or ProductStandardID eq '${escapedQuery}'`;
-        requestParams['$filter'] = exactFilter;
-        
-        try {
-          data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
-            params: requestParams
-          });
-          products = data.d?.results || [];
-        } catch (exactError) {
-          console.log('All filter attempts failed:', exactError.message);
-          throw exactError;
-        }
-      }
-    }
-    
-    // Fetch descriptions for found products with language preference
-    const productIds = products.map(p => p.Product);
-    const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
-    const descriptions = await fetchProductDescriptions(productIds, preferredLanguage);
-    
-    // Transform products with descriptions
-    const transformedProducts = products.map(p => 
-      transformProduct(p, descriptions[p.Product])
-    );
-    
-    console.log(`Found ${transformedProducts.length} products for search: "${searchQuery}"`);
-    
-    res.json({
-      products: transformedProducts,
-      totalCount: transformedProducts.length
-    });
   } catch (error) {
     console.error('Error fetching products:', error.message);
     if (error.response) {
