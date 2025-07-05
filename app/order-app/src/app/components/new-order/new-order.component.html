@@ -68,7 +68,31 @@
         </div>
       </div>
       
-      <div *ngIf="!isSearching && searchQuery.trim().length > 0 && searchResults.length === 0" class="no-results">
+      <!-- Error message when system is unavailable -->
+      <div *ngIf="!isSearching && searchQuery.trim().length > 0 && searchError" class="search-error">
+        <div class="error-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="#ff6b6b" stroke-width="2"/>
+            <path d="M12 8v4M12 16h.01" stroke="#ff6b6b" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="error-content">
+          <h4 class="error-title">{{ getErrorTitle() }}</h4>
+          <p class="error-message">{{ searchErrorMessage }}</p>
+          <div class="error-actions">
+            <button class="retry-btn" (click)="retrySearch()" [disabled]="isSearching">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 4v6h6" stroke="currentColor" stroke-width="2"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" stroke="currentColor" stroke-width="2"/>
+              </svg>
+              {{ 'search.tryAgain' | translate }}
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- No results message when search is successful but returns no products -->
+      <div *ngIf="!isSearching && searchQuery.trim().length > 0 && !searchError && searchResults.length === 0" class="no-results">
         <p>{{ 'search.noProductsFound' | translate }} "{{ searchQuery }}"</p>
       </div>
       

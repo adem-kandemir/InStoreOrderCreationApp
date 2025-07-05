@@ -28,11 +28,19 @@ export class ProductService {
     return this.http.get<ProductSearchResult>(url).pipe(
       catchError(error => {
         console.error('Error searching products:', error);
-        // Fallback to empty result on error
-        return of({
+        
+        // Create enhanced error response with backend error details
+        const errorResponse: ProductSearchResult = {
           products: [],
-          totalCount: 0
-        });
+          totalCount: 0,
+          error: true,
+          errorType: error.error?.errorType || 'unknown',
+          userMessage: error.error?.userMessage || 'Unable to search products at this time',
+          technicalMessage: error.error?.technicalMessage || error.message,
+          timestamp: error.error?.timestamp || new Date().toISOString()
+        };
+        
+        return of(errorResponse);
       })
     );
   }

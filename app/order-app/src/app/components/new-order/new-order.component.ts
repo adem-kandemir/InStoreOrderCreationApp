@@ -26,6 +26,11 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   isSearching = false;
   isRefreshingPrices = false;
   selectedProduct: Product | null = null;
+  
+  // Error handling for search
+  searchError: boolean = false;
+  searchErrorType: string | null = null;
+  searchErrorMessage: string | null = null;
   cart$: Observable<Cart>;
   sourcing$: Observable<any>;
   
@@ -103,11 +108,27 @@ export class NewOrderComponent implements OnInit, OnDestroy {
       takeUntil(this.destroy$)
     ).subscribe({
       next: (result: ProductSearchResult) => {
-        this.searchResults = result.products;
         this.isSearching = false;
+        
+        if (result.error) {
+          // Handle error state
+          this.searchError = true;
+          this.searchErrorType = result.errorType || 'unknown';
+          this.searchErrorMessage = result.userMessage || 'Unable to search products at this time';
+          this.searchResults = [];
+        } else {
+          // Handle success state
+          this.searchError = false;
+          this.searchErrorType = null;
+          this.searchErrorMessage = null;
+          this.searchResults = result.products;
+        }
       },
       error: () => {
         this.isSearching = false;
+        this.searchError = true;
+        this.searchErrorType = 'unknown';
+        this.searchErrorMessage = 'Unable to search products at this time';
         this.searchResults = [];
       }
     });
@@ -131,6 +152,30 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     // This is now called when Enter is pressed
     if (this.searchQuery.trim().length > 0) {
       this.searchSubject.next(this.searchQuery);
+    }
+  }
+
+  retrySearch(): void {
+    if (this.searchQuery.trim().length > 0) {
+      this.searchError = false;
+      this.searchErrorType = null;
+      this.searchErrorMessage = null;
+      this.searchSubject.next(this.searchQuery);
+    }
+  }
+
+  getErrorTitle(): string {
+    switch (this.searchErrorType) {
+      case 'system_unavailable':
+        return 'System Temporarily Unavailable';
+      case 'timeout':
+        return 'Request Timeout';
+      case 'authentication':
+        return 'Authentication Error';
+      case 'service_not_found':
+        return 'Service Not Found';
+      default:
+        return 'Search Error';
     }
   }
 

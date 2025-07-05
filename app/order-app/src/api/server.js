@@ -178,7 +178,7 @@ const oppsService = require('./services/opps.service');
 const omsaService = require('./services/omsa.service');
 const omfService = require('./services/omf.service');
 
-// Enhanced product transformation with OPPS pricing
+// Enhanced product transformation with OPPS pricing and OMSA availability
 async function transformProductWithPricing(s4Product, description = '', storeId = null) {
   const productId = s4Product.Product;
   
@@ -193,9 +193,47 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
         salePrice: oppsPricing[productId].salePrice,
         currency: oppsPricing[productId].currency
       };
+      console.log(`OPPS: Using real pricing for product ${productId}: €${pricing.listPrice}`);
+    } else {
+      console.log(`OPPS: No pricing found for product ${productId}, using fallback`);
     }
   } catch (error) {
-    console.log(`Using fallback pricing for product ${productId}`);
+    console.log(`OPPS: Error getting pricing for product ${productId}, using fallback:`, error.message);
+  }
+
+  // Get real availability from OMSA
+  let availability = { 
+    inStoreStock: 0, 
+    onlineStock: 0, 
+    isAvailable: false 
+  }; // Default fallback
+  
+  try {
+    const omsaAvailability = await omsaService.getProductAvailabilityFromAPI(productId, { storeId });
+    if (omsaAvailability && omsaAvailability.hasData !== false) {
+      availability = {
+        inStoreStock: omsaAvailability.inStoreStock || 0,
+        onlineStock: omsaAvailability.onlineStock || 0,
+        isAvailable: omsaAvailability.isAvailable || false
+      };
+      console.log(`OMSA: Using real availability for product ${productId}: Store=${availability.inStoreStock}, Online=${availability.onlineStock}`);
+    } else {
+      console.log(`OMSA: No availability data for product ${productId}, using fallback`);
+      // Use mock data as fallback when OMSA is not available
+      availability = {
+        inStoreStock: Math.floor(Math.random() * 100),
+        onlineStock: Math.floor(Math.random() * 100),
+        isAvailable: true
+      };
+    }
+  } catch (error) {
+    console.log(`OMSA: Error getting availability for product ${productId}, using fallback:`, error.message);
+    // Use mock data as fallback when OMSA fails
+    availability = {
+      inStoreStock: Math.floor(Math.random() * 100),
+      onlineStock: Math.floor(Math.random() * 100),
+      isAvailable: true
+    };
   }
 
   return {
@@ -207,9 +245,9 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
     currency: pricing.currency,
     unit: s4Product.BaseUnit || 'EA',
     image: `/api/images/products/${productId}.jpg`,
-    inStoreStock: Math.floor(Math.random() * 100), // Mock data for now
-    onlineStock: Math.floor(Math.random() * 100), // Mock data for now
-    isAvailable: true
+    inStoreStock: availability.inStoreStock,
+    onlineStock: availability.onlineStock,
+    isAvailable: availability.isAvailable
   };
 }
 
@@ -257,6 +295,10 @@ async function searchProductsByFields(escapedQuery) {
         return data.d?.results || [];
       } catch (exactError) {
         console.log('All product field filter attempts failed:', exactError.message);
+        // If all attempts failed with 502, throw the error to trigger proper error handling
+        if (exactError.message.includes('502')) {
+          throw exactError;
+        }
         return [];
       }
     }
@@ -310,6 +352,10 @@ async function searchProductsByDescription(escapedQuery, preferredLanguage = 'EN
           });
         } catch (startswithError) {
           console.log('All description filter attempts failed:', startswithError.message);
+          // If all attempts failed with 502, throw the error to trigger proper error handling
+          if (startswithError.message.includes('502')) {
+            throw startswithError;
+          }
           return [];
         }
       }
@@ -349,6 +395,33 @@ async function searchProductsByDescription(escapedQuery, preferredLanguage = 'EN
   }
 }
 
+// Helper function to check if service is configured
+function isServiceConfigured(serviceName) {
+  const systemUpper = serviceName.toUpperCase();
+  
+  // Check environment variables first
+  if (process.env[`${systemUpper}_BASE_URL`]) {
+    return 'configured';
+  }
+  
+  // Check VCAP_SERVICES for bound services
+  try {
+    const vcapServices = JSON.parse(process.env.VCAP_SERVICES || '{}');
+    const serviceKey = `${serviceName.toLowerCase()}-credentials`;
+    const boundService = vcapServices['user-provided']?.find(service => 
+      service.name === serviceKey
+    );
+    
+    if (boundService && boundService.credentials && boundService.credentials.base_url) {
+      return 'configured';
+    }
+  } catch (error) {
+    // VCAP_SERVICES parsing failed, continue to fallback check
+  }
+  
+  return 'fallback';
+}
+
 // API endpoints
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -356,9 +429,9 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: isCloudFoundry ? 'Cloud Foundry' : 'Local Development',
     services: {
-      opps: process.env.OPPS_BASE_URL ? 'configured' : 'fallback',
-      omsa: process.env.OMSA_BASE_URL ? 'configured' : 'fallback',
-      omf: process.env.OMF_BASE_URL ? 'configured' : 'fallback'
+      opps: isServiceConfigured('opps'),
+      omsa: isServiceConfigured('omsa'),
+      omf: isServiceConfigured('omf')
     }
   });
 });
@@ -770,12 +843,33 @@ app.get('/api/products', async (req, res) => {
       console.error('Response data:', error.response.data);
     }
     
-    // Return error response - no more mock data fallback
-    res.status(500).json({
-      error: 'Failed to fetch products from S/4HANA',
-      message: error.message,
+    // Determine error type for better user experience
+    let errorType = 'unknown';
+    let userMessage = 'Unable to search products at this time';
+    
+    if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+      errorType = 'system_unavailable';
+      userMessage = 'The product system is temporarily unavailable. Please try again later.';
+    } else if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+      errorType = 'timeout';
+      userMessage = 'The request timed out. Please try again.';
+    } else if (error.message.includes('401') || error.message.includes('403')) {
+      errorType = 'authentication';
+      userMessage = 'Authentication error. Please contact support.';
+    } else if (error.message.includes('404')) {
+      errorType = 'service_not_found';
+      userMessage = 'Product service not found. Please contact support.';
+    }
+    
+    // Return user-friendly error response
+    res.status(503).json({
+      error: 'Service temporarily unavailable',
+      errorType: errorType,
+      userMessage: userMessage,
+      technicalMessage: error.message,
       products: [],
-      totalCount: 0
+      totalCount: 0,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -795,7 +889,7 @@ app.get('/api/products/:id', async (req, res) => {
       // Fetch description for this product with language preference
       const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
       const descriptions = await fetchProductDescriptions([productId], preferredLanguage);
-      const product = transformProduct(data.d, descriptions[productId]);
+      const product = await transformProductWithPricing(data.d, descriptions[productId]);
       res.json(product);
     } else {
       res.status(404).json({ error: 'Product not found' });
@@ -803,11 +897,32 @@ app.get('/api/products/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching product:', error.message);
     
-    // Return error response - no more mock data fallback
-    res.status(500).json({ 
-      error: 'Failed to fetch product from S/4HANA',
-      message: error.message,
-      productId: productId
+    // Determine error type for better user experience
+    let errorType = 'unknown';
+    let userMessage = 'Unable to load product details at this time';
+    
+    if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+      errorType = 'system_unavailable';
+      userMessage = 'The product system is temporarily unavailable. Please try again later.';
+    } else if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+      errorType = 'timeout';
+      userMessage = 'The request timed out. Please try again.';
+    } else if (error.message.includes('401') || error.message.includes('403')) {
+      errorType = 'authentication';
+      userMessage = 'Authentication error. Please contact support.';
+    } else if (error.message.includes('404')) {
+      errorType = 'service_not_found';
+      userMessage = 'Product service not found. Please contact support.';
+    }
+    
+    // Return user-friendly error response
+    res.status(503).json({ 
+      error: 'Service temporarily unavailable',
+      errorType: errorType,
+      userMessage: userMessage,
+      technicalMessage: error.message,
+      productId: productId,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -836,7 +951,7 @@ app.get('/api/products/scan/:ean', async (req, res) => {
       // Fetch description for this product with language preference
       const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
       const descriptions = await fetchProductDescriptions([s4Product.Product], preferredLanguage);
-      const product = transformProduct(s4Product, descriptions[s4Product.Product]);
+      const product = await transformProductWithPricing(s4Product, descriptions[s4Product.Product]);
       
       console.log('Product found by EAN in S/4HANA:', product.id, product.description);
       res.json(product);
@@ -847,11 +962,32 @@ app.get('/api/products/scan/:ean', async (req, res) => {
   } catch (error) {
     console.error('Error scanning EAN:', error.message);
     
-    // Return error response - no more mock data fallback
-    res.status(500).json({ 
-      error: 'Failed to scan EAN in S/4HANA',
-      message: error.message,
-      ean: ean
+    // Determine error type for better user experience
+    let errorType = 'unknown';
+    let userMessage = 'Unable to scan barcode at this time';
+    
+    if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+      errorType = 'system_unavailable';
+      userMessage = 'The product system is temporarily unavailable. Please try again later.';
+    } else if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+      errorType = 'timeout';
+      userMessage = 'The request timed out. Please try again.';
+    } else if (error.message.includes('401') || error.message.includes('403')) {
+      errorType = 'authentication';
+      userMessage = 'Authentication error. Please contact support.';
+    } else if (error.message.includes('404')) {
+      errorType = 'service_not_found';
+      userMessage = 'Product service not found. Please contact support.';
+    }
+    
+    // Return user-friendly error response
+    res.status(503).json({ 
+      error: 'Service temporarily unavailable',
+      errorType: errorType,
+      userMessage: userMessage,
+      technicalMessage: error.message,
+      ean: ean,
+      timestamp: new Date().toISOString()
     });
   }
 });

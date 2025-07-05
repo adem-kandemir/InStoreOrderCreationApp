@@ -30,4 +30,9 @@ export interface Product {
 export interface ProductSearchResult {
   products: Product[];
   totalCount: number;
+  error?: boolean;
+  errorType?: string;
+  userMessage?: string;
+  technicalMessage?: string;
+  timestamp?: string;
 } 

@@ -29,7 +29,8 @@ export class LocalizationService {
         placeholder: 'Search products by description or number',
         searching: 'Searching...',
         noResults: 'No products found',
-        noProductsFound: 'No products found for'
+        noProductsFound: 'No products found for',
+        tryAgain: 'Try Again'
       },
       
       // Barcode Scanner
@@ -223,7 +224,8 @@ export class LocalizationService {
         placeholder: 'Produkte nach Beschreibung oder Nummer suchen',
         searching: 'Suche läuft...',
         noResults: 'Keine Produkte gefunden',
-        noProductsFound: 'Keine Produkte gefunden für'
+        noProductsFound: 'Keine Produkte gefunden für',
+        tryAgain: 'Erneut versuchen'
       },
       
       // Barcode Scanner
