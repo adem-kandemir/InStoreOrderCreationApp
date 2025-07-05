@@ -13,11 +13,12 @@ import { Product, ProductSearchResult } from '../../models/product.interface';
 import { Cart, CartItem, CustomerDetails, ShippingOption, PaymentOption, Order } from '../../models/cart.interface';
 import { ProductSearchComponent } from './product-search/product-search.component';
 import { ProductDetailsComponent } from './product-details/product-details.component';
+import { CartComponent } from './cart/cart.component';
 
 @Component({
   selector: 'app-new-order',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe, ProductSearchComponent, ProductDetailsComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe, ProductSearchComponent, ProductDetailsComponent, CartComponent],
   templateUrl: './new-order.component.html',
   styleUrls: ['./new-order.component.scss']
 })
@@ -135,6 +136,28 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     this.cartService.addToCart(product, 1);
   }
 
+  // Cart event handlers
+  onQuantityUpdated(event: {productId: string, quantity: number}): void {
+    this.cartService.updateQuantity(event.productId, event.quantity);
+  }
+
+  onItemRemoved(productId: string): void {
+    this.cartService.removeFromCart(productId);
+  }
+
+  onCartEmptied(): void {
+    this.cartService.clearCart();
+  }
+
+  onProceedToCustomerRequested(): void {
+    this.proceedToCustomerDetails();
+  }
+
+  onCartImageError(event: Event): void {
+    this.onImageErrorFallback(event);
+  }
+
+  // Legacy methods for backward compatibility
   removeFromCart(productId: string): void {
     this.cartService.removeFromCart(productId);
   }

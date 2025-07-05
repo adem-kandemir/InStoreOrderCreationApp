@@ -1,0 +1,120 @@
+<div class="cart-container">
+  <h3>{{ 'cart.title' | translate }}</h3>
+  <div class="cart-content" *ngIf="cart$ | async as cart">
+    <div *ngIf="cart.items.length === 0" class="empty-cart">
+      <div class="empty-cart-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2"/>
+        </svg>
+      </div>
+      <p>{{ 'cart.empty' | translate }}</p>
+      <p class="instruction">{{ 'cart.emptyInstruction' | translate }}</p>
+    </div>
+    
+    <div *ngIf="cart.items.length > 0" class="cart-items">
+      <div class="cart-header">
+        <span>{{ 'cart.product' | translate }}</span>
+        <span>{{ 'cart.quantity' | translate }}</span>
+        <span>{{ 'cart.listPrice' | translate }}</span>
+        <span>{{ 'cart.price' | translate }}</span>
+        <span>{{ 'cart.total' | translate }}</span>
+      </div>
+      
+      <div *ngFor="let item of cart.items" class="cart-item">
+        <div class="item-info">
+          <img [src]="getProductImageUrl(item.product.id)" 
+               [alt]="item.product.description" 
+               class="item-image"
+               (error)="onImageError($event)">
+          <div class="item-details">
+            <span class="item-name">{{ item.product.description }}</span>
+            <span class="item-id">ID: {{ item.product.id }} | EAN: {{ item.product.ean }}</span>
+          </div>
+        </div>
+        
+        <div class="quantity-controls">
+          <button (click)="onUpdateQuantity(item.product.id, item.quantity - 1)" class="qty-btn">-</button>
+          <span class="quantity">{{ item.quantity }}</span>
+          <button (click)="onUpdateQuantity(item.product.id, item.quantity + 1)" class="qty-btn">+</button>
+        </div>
+        
+        <span class="list-price">{{ item.product.listPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
+        <span class="price">{{ item.price | currency:'EUR':'symbol':'1.2-2' }}</span>
+        <span class="total">{{ item.total | currency:'EUR':'symbol':'1.2-2' }}</span>
+        
+        <button (click)="onRemoveItem(item.product.id)" class="remove-btn" title="Remove item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="cart-totals">
+        <div class="total-row">
+          <span>{{ 'cart.totalOriginal' | translate }}</span>
+          <span>{{ cart.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</span>
+        </div>
+        <div class="total-row" *ngIf="cart.discount > 0">
+          <span>{{ 'cart.discount' | translate }}</span>
+          <span>-{{ cart.discount | currency:'EUR':'symbol':'1.2-2' }}</span>
+        </div>
+        <div class="total-row final-total">
+          <span>{{ 'cart.finalTotal' | translate }}</span>
+          <span>{{ cart.finalTotal | currency:'EUR':'symbol':'1.2-2' }}</span>
+        </div>
+      </div>
+      
+      <!-- Cart Sourcing Information -->
+      <div class="cart-sourcing" *ngIf="sourcing$ | async as sourcing">
+        <div class="sourcing-header">
+          <h4>{{ 'cart.sourcing' | translate }}</h4>
+          <span class="sourcing-timestamp" *ngIf="sourcing.lastUpdated">
+            ({{ 'productDetails.updated' | translate }}: {{ sourcing.lastUpdated | date:'short' }})
+          </span>
+        </div>
+        <div class="sourcing-content">
+          <div *ngIf="sourcing.success && sourcing.data?.shipments?.length > 0" class="sourcing-shipments">
+            <div *ngFor="let shipment of sourcing.data.shipments" class="shipment-item">
+              <div class="shipment-header">
+                <span class="site-badge">{{ 'cart.site' | translate }} {{ shipment.site.id }}</span>
+                <span class="delivery-info" *ngIf="shipment.deliveryOptions?.[0]">
+                  {{ shipment.deliveryOptions[0].serviceCode.id }} - 
+                  {{ shipment.deliveryOptions[0].availableToCustomer | date:'shortDate' }}
+                </span>
+              </div>
+              <div class="shipment-items">
+                <div *ngFor="let item of shipment.items" class="sourcing-item">
+                  <span>{{ item.product.id }}: {{ item.quantity }} {{ item.unitOfMeasure.salesUnitCode }}</span>
+                  <span class="available-from" *ngIf="item.availableFrom">
+                    ({{ 'cart.availableFrom' | translate }}: {{ item.availableFrom | date:'shortDate' }})
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="sourcing.success && (!sourcing.data?.shipments || sourcing.data.shipments.length === 0)" class="no-sourcing">
+            <span class="sourcing-icon">⚠</span>
+            <span>{{ 'cart.noSourcing' | translate }}</span>
+            <div *ngIf="sourcing.data?.trace?.warnings" class="sourcing-warnings">
+              <div *ngFor="let warning of sourcing.data.trace.warnings" class="warning-item">
+                <small>{{ warning.message }}</small>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="!sourcing.success" class="sourcing-error">
+            <span class="sourcing-icon">❌</span>
+            <span>{{ 'cart.sourcingError' | translate }}</span>
+            <div *ngIf="sourcing.error" class="error-details">
+              <small>{{ sourcing.error }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="cart-actions">
+        <button class="empty-cart-btn" (click)="onEmptyCart()">{{ 'cart.emptyCart' | translate }}</button>
+        <button class="continue-btn" (click)="onProceedToCustomer()">{{ 'cart.continue' | translate }}</button>
+      </div>
+    </div>
+  </div>
+</div> 
