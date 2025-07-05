@@ -127,8 +127,27 @@ export class NewOrderComponent implements OnInit, OnDestroy {
 
   // Product details event handlers
   onRefreshPricesRequested(): void {
+    if (!this.selectedProduct) {
+      return;
+    }
+
     this.isRefreshingPrices = true;
-    // The ProductDetailsComponent will handle the refresh logic
+    
+    // Fetch fresh product data bypassing cache
+    this.productService.getProductById(this.selectedProduct.id, { refresh: true })
+      .subscribe({
+        next: (refreshedProduct) => {
+          if (refreshedProduct) {
+            console.log('Product refreshed:', refreshedProduct);
+            this.selectedProduct = refreshedProduct;
+          }
+          this.isRefreshingPrices = false;
+        },
+        error: (error) => {
+          console.error('Error refreshing product:', error);
+          this.isRefreshingPrices = false;
+        }
+      });
   }
 
   onAddToCartRequested(product: Product): void {

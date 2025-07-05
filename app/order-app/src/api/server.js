@@ -223,23 +223,26 @@ function transformProduct(s4Product, description = '') {
 }
 
 // Helper function to fetch product descriptions with language preference and caching
-async function fetchProductDescriptions(productIds, preferredLanguage = 'EN') {
+async function fetchProductDescriptions(productIds, preferredLanguage = 'EN', bypassCache = false) {
   try {
     if (productIds.length === 0) return {};
     
     const descriptions = {};
     const uncachedProductIds = [];
     
-    // Check cache first for each product
+    // Check cache first for each product (unless bypassing cache)
     for (const productId of productIds) {
       const cacheKey = getDescriptionCacheKey(productId, preferredLanguage);
       const cachedEntry = descriptionCache.get(cacheKey);
       
-      if (isCacheEntryValid(cachedEntry)) {
+      if (!bypassCache && isCacheEntryValid(cachedEntry)) {
         descriptions[productId] = cachedEntry.description;
         console.log(`Product ${productId}: Using cached description "${cachedEntry.description}" (${preferredLanguage})`);
       } else {
         uncachedProductIds.push(productId);
+        if (bypassCache) {
+          console.log(`Product ${productId}: Bypassing cache for description refresh`);
+        }
       }
     }
     
@@ -310,14 +313,14 @@ const omsaService = require('./services/omsa.service');
 const omfService = require('./services/omf.service');
 
 // Enhanced product transformation with OPPS pricing and OMSA availability
-async function transformProductWithPricing(s4Product, description = '', storeId = null) {
+async function transformProductWithPricing(s4Product, description = '', storeId = null, forceRefresh = false) {
   const productId = s4Product.Product;
   
   // Get real pricing from OPPS
   let pricing = { listPrice: 19.99, salePrice: 19.99, currency: 'EUR' }; // Default fallback
   
   try {
-    const oppsPricing = await oppsService.getProductPricing(productId, { storeId });
+    const oppsPricing = await oppsService.getProductPricing(productId, { storeId, forceRefresh });
     if (oppsPricing && oppsPricing[productId]) {
       pricing = {
         listPrice: oppsPricing[productId].listPrice,
@@ -341,7 +344,7 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
   let omsaAvailabilityDetails = null;
   
   try {
-    const omsaAvailability = await omsaService.getProductAvailabilityFromAPI(productId, { storeId });
+    const omsaAvailability = await omsaService.getProductAvailabilityFromAPI(productId, { storeId, forceRefresh });
     omsaAvailabilityDetails = omsaAvailability; // Store the full details
     if (omsaAvailability && omsaAvailability.hasData !== false) {
       availability = {
@@ -1023,6 +1026,7 @@ app.get('/api/products', async (req, res) => {
 
 app.get('/api/products/:id', async (req, res) => {
   const productId = req.params.id;
+  const refresh = req.query.refresh === 'true';
   
   try {
     // Fetch specific product from S/4HANA using SAP Cloud SDK
@@ -1035,8 +1039,13 @@ app.get('/api/products/:id', async (req, res) => {
     if (data && data.d) {
       // Fetch description for this product with language preference
       const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
-      const descriptions = await fetchProductDescriptions([productId], preferredLanguage);
-      const product = await transformProductWithPricing(data.d, descriptions[productId]);
+      const descriptions = await fetchProductDescriptions([productId], preferredLanguage, refresh);
+      const product = await transformProductWithPricing(data.d, descriptions[productId], null, refresh);
+      
+      if (refresh) {
+        console.log(`Product ${productId}: Refreshed with bypass cache`);
+      }
+      
       res.json(product);
     } else {
       res.status(404).json({ error: 'Product not found' });
