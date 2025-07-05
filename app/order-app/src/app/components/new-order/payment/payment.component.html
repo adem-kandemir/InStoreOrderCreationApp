@@ -1,0 +1,50 @@
+<div class="payment-container">
+  <div class="step-header">
+    <button class="back-btn" (click)="onBackToCustomer()" [disabled]="isProcessingOrder">
+      ← Back
+    </button>
+    <h2>Payment option</h2>
+  </div>
+  
+  <div class="payment-content">
+    <div class="payment-options">
+      <label *ngFor="let option of paymentOptions" 
+             class="payment-option" 
+             [class.selected]="selectedPayment.id === option.id"
+             [class.disabled]="isProcessingOrder">
+        <input type="radio" 
+               [value]="option.id" 
+               [checked]="selectedPayment.id === option.id"
+               [disabled]="isProcessingOrder"
+               (change)="onPaymentOptionChange(option)">
+        <span class="radio-custom"></span>
+        <div class="option-details">
+          <span class="option-name">{{ option.name }}</span>
+          <span class="option-description">{{ option.description }}</span>
+        </div>
+      </label>
+    </div>
+    
+    <!-- Processing indicator -->
+    <div *ngIf="isProcessingOrder" class="processing-indicator">
+      <div class="spinner"></div>
+      <span>Processing your order...</span>
+    </div>
+    
+    <div class="form-actions">
+      <button type="button" 
+              class="cancel-btn" 
+              (click)="onCancelOrder()"
+              [disabled]="isProcessingOrder">
+        Cancel Order
+      </button>
+      <button type="button" 
+              class="place-order-btn" 
+              [disabled]="!canPlaceOrder"
+              (click)="onPlaceOrder()">
+        <span *ngIf="!isProcessingOrder">Place Order</span>
+        <span *ngIf="isProcessingOrder">Processing...</span>
+      </button>
+    </div>
+  </div>
+</div> 

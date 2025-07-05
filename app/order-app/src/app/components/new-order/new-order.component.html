@@ -52,34 +52,16 @@
     </app-customer-details>
 
     <!-- Payment Section -->
-    <div *ngIf="currentStep === 'payment'" class="payment-section">
-    <div class="step-header">
-      <button class="back-btn" (click)="goBackToCustomer()">← Back</button>
-      <h2>Payment option</h2>
-    </div>
-    
-    <div class="payment-content">
-      <div class="payment-options">
-        <label *ngFor="let option of paymentOptions" class="payment-option">
-          <input type="radio" 
-                 [value]="option.id" 
-                 [(ngModel)]="selectedPayment" 
-                 [ngModelOptions]="{standalone: true}"
-                 (change)="selectedPayment = option">
-          <span class="radio-custom"></span>
-          <div class="option-details">
-            <span class="option-name">{{ option.name }}</span>
-            <span class="option-description">{{ option.description }}</span>
-          </div>
-        </label>
-      </div>
-      
-      <div class="form-actions">
-        <button type="button" class="cancel-btn" (click)="goBackToCart()">Cancel Order</button>
-        <button type="button" class="place-order-btn" (click)="placeOrder()">Place Order</button>
-      </div>
-    </div>
-    </div>
+    <app-payment
+      *ngIf="currentStep === 'payment'"
+      [paymentOptions]="paymentOptions"
+      [selectedPayment]="selectedPayment"
+      [isProcessingOrder]="isProcessingOrder"
+      (backToCustomerRequested)="onBackToCustomerRequested()"
+      (cancelOrderRequested)="onCancelOrderRequested()"
+      (placeOrderRequested)="onPlaceOrderRequested($event)"
+      (paymentOptionChanged)="onPaymentOptionChanged($event)">
+    </app-payment>
   </div>
 
   <!-- Success View -->

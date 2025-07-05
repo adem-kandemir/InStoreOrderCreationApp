@@ -15,11 +15,12 @@ import { ProductSearchComponent } from './product-search/product-search.componen
 import { ProductDetailsComponent } from './product-details/product-details.component';
 import { CartComponent } from './cart/cart.component';
 import { CustomerDetailsComponent } from './customer-details/customer-details.component';
+import { PaymentComponent } from './payment/payment.component';
 
 @Component({
   selector: 'app-new-order',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe, ProductSearchComponent, ProductDetailsComponent, CartComponent, CustomerDetailsComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe, ProductSearchComponent, ProductDetailsComponent, CartComponent, CustomerDetailsComponent, PaymentComponent],
   templateUrl: './new-order.component.html',
   styleUrls: ['./new-order.component.scss']
 })
@@ -51,6 +52,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
   
   selectedShipping: ShippingOption = this.shippingOptions[0];
   selectedPayment: PaymentOption = this.paymentOptions[0];
+  isProcessingOrder: boolean = false;
   
   orderConfirmation: string | null = null;
   orderError = false;
@@ -187,6 +189,24 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     this.selectedShipping = option;
   }
 
+  // Payment event handlers
+  onBackToCustomerRequested(): void {
+    this.goBackToCustomer();
+  }
+
+  onCancelOrderRequested(): void {
+    this.goBackToCart();
+  }
+
+  onPlaceOrderRequested(paymentOption: PaymentOption): void {
+    this.selectedPayment = paymentOption;
+    this.placeOrder();
+  }
+
+  onPaymentOptionChanged(option: PaymentOption): void {
+    this.selectedPayment = option;
+  }
+
   // Get customer data for the component
   getInitialCustomerData(): CustomerDetails | undefined {
     if (!this.customerForm.value.firstName) {
@@ -265,6 +285,8 @@ export class NewOrderComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.isProcessingOrder = true;
+
     try {
       console.log('Placing order with OMF...');
       
@@ -340,6 +362,8 @@ export class NewOrderComponent implements OnInit, OnDestroy {
       }
       
       this.currentStep = 'error';
+    } finally {
+      this.isProcessingOrder = false;
     }
   }
 
@@ -351,6 +375,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     this.orderError = false;
     this.orderErrorMessage = null;
     this.orderErrorDetails = null;
+    this.isProcessingOrder = false;
     this.customerForm.reset();
   }
 
