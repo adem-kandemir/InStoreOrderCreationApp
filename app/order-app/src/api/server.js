@@ -53,8 +53,17 @@ try {
   console.error('Error loading xsenv:', error.message);
 }
 
-// Helper function to execute S/4HANA requests via SAP Cloud SDK
+// Helper function to execute S/4HANA requests via SAP Cloud SDK or direct connection
 async function executeS4HanaRequest(path, options = {}) {
+  // Check if running locally (not in Cloud Foundry) - use direct connection
+  console.log('DEBUG: isCloudFoundry =', isCloudFoundry, 'CF_INSTANCE_INDEX =', process.env.CF_INSTANCE_INDEX);
+  if (!isCloudFoundry) {
+    console.log('DEBUG: Using direct connection path');
+    return await executeDirectS4HanaRequest(path, options);
+  }
+  
+  console.log('DEBUG: Using Cloud SDK path');
+  
   try {
     console.log('Using SAP Cloud SDK to connect to destination RS4');
     
@@ -87,6 +96,64 @@ async function executeS4HanaRequest(path, options = {}) {
     return response.data;
   } catch (error) {
     console.error('Error in executeS4HanaRequest:', error.message);
+    throw error;
+  }
+}
+
+// Helper function to execute direct S/4HANA requests for local development
+async function executeDirectS4HanaRequest(path, options = {}) {
+  try {
+    console.log('Using direct connection to S/4HANA for local development');
+    
+    const baseUrl = process.env.S4HANA_BASE_URL || 'http://MERCHANDISE.REALCORE.DE:8000';
+    const username = process.env.S4HANA_USERNAME;
+    const password = process.env.S4HANA_PASSWORD;
+    
+    // Build the URL with properly encoded query parameters
+    let fullUrl = path;
+    if (options.params && Object.keys(options.params).length > 0) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, value]) => {
+        searchParams.append(key, value);
+      });
+      fullUrl = `${path}?${searchParams.toString()}`;
+    }
+    
+    const requestConfig = {
+      method: 'GET',
+      url: `${baseUrl}${fullUrl}`,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    };
+    
+    // Add Basic Authentication if credentials are provided
+    if (username && password) {
+      requestConfig.auth = {
+        username: username,
+        password: password
+      };
+      console.log('Using Basic Authentication for S/4HANA connection');
+    } else {
+      console.warn('No S/4HANA credentials found. Set S4HANA_USERNAME and S4HANA_PASSWORD in env.local');
+    }
+    
+    console.log('Executing direct request:', {
+      ...requestConfig,
+      auth: requestConfig.auth ? { username: requestConfig.auth.username, password: '[HIDDEN]' } : undefined
+    });
+    
+    const response = await axios.get(requestConfig.url, {
+      headers: requestConfig.headers,
+      timeout: requestConfig.timeout,
+      auth: requestConfig.auth
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error in executeDirectS4HanaRequest:', error.message);
     throw error;
   }
 }
