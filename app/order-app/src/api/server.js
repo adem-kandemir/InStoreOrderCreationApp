@@ -28,6 +28,41 @@ if (!process.env.VCAP_SERVICES) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Product description cache - expires after 24 hours
+const descriptionCache = new Map();
+const DESCRIPTION_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// Helper function to get cache key for product description
+function getDescriptionCacheKey(productId, language) {
+  return `${productId}_${language}`;
+}
+
+// Helper function to check if cache entry is valid
+function isCacheEntryValid(cacheEntry) {
+  return cacheEntry && (Date.now() - cacheEntry.timestamp) < DESCRIPTION_CACHE_DURATION;
+}
+
+// Helper function to clean up expired cache entries
+function cleanupExpiredCacheEntries() {
+  const now = Date.now();
+  const keysToDelete = [];
+  
+  for (const [key, entry] of descriptionCache.entries()) {
+    if (now - entry.timestamp >= DESCRIPTION_CACHE_DURATION) {
+      keysToDelete.push(key);
+    }
+  }
+  
+  keysToDelete.forEach(key => descriptionCache.delete(key));
+  
+  if (keysToDelete.length > 0) {
+    console.log(`Cleaned up ${keysToDelete.length} expired description cache entries`);
+  }
+}
+
+// Run cache cleanup every hour
+setInterval(cleanupExpiredCacheEntries, 60 * 60 * 1000);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -188,15 +223,29 @@ function transformProduct(s4Product, description = '') {
   };
 }
 
-// Helper function to fetch product descriptions with language preference
+// Helper function to fetch product descriptions with language preference and caching
 async function fetchProductDescriptions(productIds, preferredLanguage = 'EN') {
   try {
     if (productIds.length === 0) return {};
     
     const descriptions = {};
+    const uncachedProductIds = [];
     
-    // Fetch descriptions for each product using navigation property
+    // Check cache first for each product
     for (const productId of productIds) {
+      const cacheKey = getDescriptionCacheKey(productId, preferredLanguage);
+      const cachedEntry = descriptionCache.get(cacheKey);
+      
+      if (isCacheEntryValid(cachedEntry)) {
+        descriptions[productId] = cachedEntry.description;
+        console.log(`Product ${productId}: Using cached description "${cachedEntry.description}" (${preferredLanguage})`);
+      } else {
+        uncachedProductIds.push(productId);
+      }
+    }
+    
+    // Fetch descriptions for uncached products
+    for (const productId of uncachedProductIds) {
       try {
         const data = await executeS4HanaRequest(`/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product('${productId}')/to_Description`, {
           params: {}
@@ -225,11 +274,27 @@ async function fetchProductDescriptions(productIds, preferredLanguage = 'EN') {
           }
           
           descriptions[productId] = selectedDescription;
-          console.log(`Product ${productId}: Using description "${selectedDescription}" (language priority: ${preferredLanguage} -> EN -> first available)`);
+          
+          // Cache the description for 24 hours
+          const cacheKey = getDescriptionCacheKey(productId, preferredLanguage);
+          descriptionCache.set(cacheKey, {
+            description: selectedDescription,
+            timestamp: Date.now()
+          });
+          
+          console.log(`Product ${productId}: Fetched and cached description "${selectedDescription}" (language priority: ${preferredLanguage} -> EN -> first available)`);
         }
       } catch (error) {
         console.error(`Error fetching description for product ${productId}:`, error.message);
-        descriptions[productId] = `Product ${productId}`; // Fallback
+        const fallbackDescription = `Product ${productId}`;
+        descriptions[productId] = fallbackDescription;
+        
+        // Cache the fallback description too (shorter duration)
+        const cacheKey = getDescriptionCacheKey(productId, preferredLanguage);
+        descriptionCache.set(cacheKey, {
+          description: fallbackDescription,
+          timestamp: Date.now()
+        });
       }
     }
     
@@ -1132,6 +1197,83 @@ app.get('/api/test-destination', async (req, res) => {
   }
 });
 
+// Cache management endpoints
+app.get('/api/cache/descriptions/stats', (req, res) => {
+  const now = Date.now();
+  const stats = {
+    totalEntries: descriptionCache.size,
+    validEntries: 0,
+    expiredEntries: 0,
+    cacheHitsByLanguage: {},
+    oldestEntry: null,
+    newestEntry: null
+  };
+  
+  for (const [key, entry] of descriptionCache.entries()) {
+    const isValid = isCacheEntryValid(entry);
+    if (isValid) {
+      stats.validEntries++;
+    } else {
+      stats.expiredEntries++;
+    }
+    
+    // Track language usage
+    const language = key.split('_')[1];
+    if (!stats.cacheHitsByLanguage[language]) {
+      stats.cacheHitsByLanguage[language] = 0;
+    }
+    stats.cacheHitsByLanguage[language]++;
+    
+    // Track oldest and newest entries
+    if (!stats.oldestEntry || entry.timestamp < stats.oldestEntry) {
+      stats.oldestEntry = entry.timestamp;
+    }
+    if (!stats.newestEntry || entry.timestamp > stats.newestEntry) {
+      stats.newestEntry = entry.timestamp;
+    }
+  }
+  
+  // Convert timestamps to readable dates
+  if (stats.oldestEntry) {
+    stats.oldestEntryDate = new Date(stats.oldestEntry).toISOString();
+  }
+  if (stats.newestEntry) {
+    stats.newestEntryDate = new Date(stats.newestEntry).toISOString();
+  }
+  
+  res.json({
+    ...stats,
+    cacheExpirationHours: DESCRIPTION_CACHE_DURATION / (60 * 60 * 1000),
+    currentTime: new Date().toISOString()
+  });
+});
+
+app.delete('/api/cache/descriptions', (req, res) => {
+  const sizeBefore = descriptionCache.size;
+  descriptionCache.clear();
+  console.log(`Cleared description cache (${sizeBefore} entries)`);
+  
+  res.json({
+    message: 'Description cache cleared successfully',
+    entriesRemoved: sizeBefore,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.delete('/api/cache/descriptions/expired', (req, res) => {
+  const sizeBefore = descriptionCache.size;
+  cleanupExpiredCacheEntries();
+  const sizeAfter = descriptionCache.size;
+  const entriesRemoved = sizeBefore - sizeAfter;
+  
+  res.json({
+    message: 'Expired description cache entries cleaned up',
+    entriesRemoved: entriesRemoved,
+    remainingEntries: sizeAfter,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -1144,6 +1286,7 @@ if (require.main === module) {
     console.log(`API server running on port ${PORT}`);
     console.log(`Environment: ${isCloudFoundry ? 'Cloud Foundry' : 'Local Development'}`);
     console.log(`Health check available at: http://localhost:${PORT}/api/health`);
+    console.log(`Description cache management available at: http://localhost:${PORT}/api/cache/descriptions/stats`);
   });
 }
 
