@@ -14,11 +14,12 @@ import { Cart, CartItem, CustomerDetails, ShippingOption, PaymentOption, Order }
 import { ProductSearchComponent } from './product-search/product-search.component';
 import { ProductDetailsComponent } from './product-details/product-details.component';
 import { CartComponent } from './cart/cart.component';
+import { CustomerDetailsComponent } from './customer-details/customer-details.component';
 
 @Component({
   selector: 'app-new-order',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe, ProductSearchComponent, ProductDetailsComponent, CartComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, TranslatePipe, ProductSearchComponent, ProductDetailsComponent, CartComponent, CustomerDetailsComponent],
   templateUrl: './new-order.component.html',
   styleUrls: ['./new-order.component.scss']
 })
@@ -155,6 +156,56 @@ export class NewOrderComponent implements OnInit, OnDestroy {
 
   onCartImageError(event: Event): void {
     this.onImageErrorFallback(event);
+  }
+
+  // Customer details event handlers
+  onBackToCartRequested(): void {
+    this.goBackToCart();
+  }
+
+  onProceedToPaymentRequested(event: {customerData: CustomerDetails, selectedShipping: ShippingOption}): void {
+    // Update the selected shipping option
+    this.selectedShipping = event.selectedShipping;
+    
+    // Update the form with customer data (for legacy compatibility)
+    this.customerForm.patchValue({
+      firstName: event.customerData.firstName,
+      lastName: event.customerData.lastName,
+      email: event.customerData.email,
+      phone: event.customerData.phone,
+      addressLine1: event.customerData.address.line1,
+      addressLine2: event.customerData.address.line2,
+      zipCode: event.customerData.address.zipCode,
+      city: event.customerData.address.city,
+      country: event.customerData.address.country
+    });
+    
+    this.proceedToPayment();
+  }
+
+  onShippingOptionChanged(option: ShippingOption): void {
+    this.selectedShipping = option;
+  }
+
+  // Get customer data for the component
+  getInitialCustomerData(): CustomerDetails | undefined {
+    if (!this.customerForm.value.firstName) {
+      return undefined;
+    }
+
+    return {
+      firstName: this.customerForm.value.firstName,
+      lastName: this.customerForm.value.lastName,
+      email: this.customerForm.value.email,
+      phone: this.customerForm.value.phone,
+      address: {
+        line1: this.customerForm.value.addressLine1,
+        line2: this.customerForm.value.addressLine2,
+        zipCode: this.customerForm.value.zipCode,
+        city: this.customerForm.value.city,
+        country: this.customerForm.value.country
+      }
+    };
   }
 
   // Legacy methods for backward compatibility

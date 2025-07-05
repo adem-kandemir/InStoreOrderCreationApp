@@ -1,0 +1,131 @@
+<div class="customer-details-container" [class.completed]="currentStep === 'payment'">
+  <div class="step-header">
+    <button class="back-btn" (click)="onBackToCart()">← {{ 'common.back' | translate }}</button>
+    <h2>{{ 'customer.title' | translate }}</h2>
+    <div *ngIf="currentStep === 'payment'" class="step-status">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" stroke="#4CAF50" stroke-width="2"/>
+        <path d="M8 12l2 2 4-4" stroke="#4CAF50" stroke-width="2" fill="none"/>
+      </svg>
+      <span>{{ 'customer.completed' | translate }}</span>
+    </div>
+  </div>
+
+  <form [formGroup]="customerForm" class="customer-form" [class.readonly]="isReadonly">
+    <div class="form-section">
+      <h3>Personal Information</h3>
+      <div class="form-row">
+        <div class="form-field">
+          <label for="firstName">First name*</label>
+          <input type="text" 
+                 id="firstName" 
+                 formControlName="firstName" 
+                 required 
+                 [readonly]="isReadonly">
+        </div>
+        <div class="form-field">
+          <label for="lastName">Last name*</label>
+          <input type="text" 
+                 id="lastName" 
+                 formControlName="lastName" 
+                 required 
+                 [readonly]="isReadonly">
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-field">
+          <label for="email">Email*</label>
+          <input type="email" 
+                 id="email" 
+                 formControlName="email" 
+                 required 
+                 [readonly]="isReadonly">
+        </div>
+        <div class="form-field">
+          <label for="phone">Phone number (optional)</label>
+          <input type="tel" 
+                 id="phone" 
+                 formControlName="phone" 
+                 [readonly]="isReadonly">
+        </div>
+      </div>
+    </div>
+    
+    <div class="form-section">
+      <h3>Address Information</h3>
+      <div class="form-field">
+        <label for="addressLine1">Address Line 1*</label>
+        <input type="text" 
+               id="addressLine1" 
+               formControlName="addressLine1" 
+               required 
+               [readonly]="isReadonly">
+      </div>
+      
+      <div class="form-field">
+        <label for="addressLine2">Address Line 2</label>
+        <input type="text" 
+               id="addressLine2" 
+               formControlName="addressLine2" 
+               [readonly]="isReadonly">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-field">
+          <label for="zipCode">Zip Code*</label>
+          <input type="text" 
+                 id="zipCode" 
+                 formControlName="zipCode" 
+                 required 
+                 [readonly]="isReadonly">
+        </div>
+        <div class="form-field">
+          <label for="city">City*</label>
+          <input type="text" 
+                 id="city" 
+                 formControlName="city" 
+                 required 
+                 [readonly]="isReadonly">
+        </div>
+      </div>
+      
+      <div class="form-field">
+        <label for="country">Country*</label>
+        <input type="text" 
+               id="country" 
+               formControlName="country" 
+               required 
+               [readonly]="isReadonly">
+      </div>
+    </div>
+    
+    <div class="form-section">
+      <h3>Shipping option</h3>
+      <div class="shipping-options">
+        <label *ngFor="let option of shippingOptions" 
+               class="shipping-option" 
+               [class.selected]="selectedShipping.id === option.id">
+          <input type="radio" 
+                 [value]="option.id" 
+                 [checked]="selectedShipping.id === option.id"
+                 [disabled]="isReadonly"
+                 (change)="onShippingOptionChange(option)">
+          <span class="radio-custom"></span>
+          <div class="option-details">
+            <span class="option-name">{{ option.name }} ({{ option.price | currency:'EUR':'symbol':'1.2-2' }})</span>
+            <span class="option-description">Delivery: {{ option.estimatedDays }} days</span>
+          </div>
+        </label>
+      </div>
+    </div>
+    
+    <div *ngIf="currentStep === 'customer'" class="form-actions">
+      <button type="button" class="cancel-btn" (click)="onBackToCart()">Cancel Order</button>
+      <button type="button" 
+              class="continue-btn" 
+              [disabled]="!isFormValid"
+              (click)="onProceedToPayment()">Continue to Payment</button>
+    </div>
+  </form>
+</div> 
