@@ -80,8 +80,7 @@ console.log('Starting API server...');
 console.log('Environment:', isCloudFoundry ? 'Cloud Foundry' : 'Local Development');
 
 // Load xsenv only when needed
-let xsenv;
-try {
+let xsenv; try {
   xsenv = require('@sap/xsenv');
   console.log('xsenv loaded successfully');
 } catch (error) {
@@ -217,8 +216,8 @@ function transformProduct(s4Product, description = '') {
     listPrice: parseFloat(s4Product.NetPriceAmount || '19.99'), // Default price if not available
     unit: s4Product.BaseUnit || 'EA',
     image: `/api/images/products/${s4Product.Product}.jpg`,
-    inStoreStock: Math.floor(Math.random() * 100), // Mock data for now
-    onlineStock: Math.floor(Math.random() * 100), // Mock data for now
+    inStoreStock: 0, // No availability data
+    onlineStock: 0, // No availability data
     isAvailable: true
   };
 }
@@ -339,9 +338,11 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
     onlineStock: 0, 
     isAvailable: false 
   }; // Default fallback
+  let omsaAvailabilityDetails = null;
   
   try {
     const omsaAvailability = await omsaService.getProductAvailabilityFromAPI(productId, { storeId });
+    omsaAvailabilityDetails = omsaAvailability; // Store the full details
     if (omsaAvailability && omsaAvailability.hasData !== false) {
       availability = {
         inStoreStock: omsaAvailability.inStoreStock || 0,
@@ -350,21 +351,27 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
       };
       console.log(`OMSA: Using real availability for product ${productId}: Store=${availability.inStoreStock}, Online=${availability.onlineStock}`);
     } else {
-      console.log(`OMSA: No availability data for product ${productId}, using fallback`);
-      // Use mock data as fallback when OMSA is not available
+      console.log(`OMSA: No availability data for product ${productId}, showing 0 availability`);
+      // Show 0 availability when OMSA has no data
       availability = {
-        inStoreStock: Math.floor(Math.random() * 100),
-        onlineStock: Math.floor(Math.random() * 100),
-        isAvailable: true
+        inStoreStock: 0,
+        onlineStock: 0,
+        isAvailable: false
       };
     }
   } catch (error) {
-    console.log(`OMSA: Error getting availability for product ${productId}, using fallback:`, error.message);
-    // Use mock data as fallback when OMSA fails
+    console.log(`OMSA: Error getting availability for product ${productId}, showing 0 availability:`, error.message);
+    // Show 0 availability when OMSA fails
     availability = {
-      inStoreStock: Math.floor(Math.random() * 100),
-      onlineStock: Math.floor(Math.random() * 100),
-      isAvailable: true
+      inStoreStock: 0,
+      onlineStock: 0,
+      isAvailable: false
+    };
+    omsaAvailabilityDetails = {
+      hasData: false,
+      source: 'OMSA-Error',
+      error: error.message,
+      lastUpdated: new Date().toISOString()
     };
   }
 
@@ -379,7 +386,13 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
     image: `/api/images/products/${productId}.jpg`,
     inStoreStock: availability.inStoreStock,
     onlineStock: availability.onlineStock,
-    isAvailable: availability.isAvailable
+    isAvailable: availability.isAvailable,
+    totalStock: (availability.inStoreStock || 0) + (availability.onlineStock || 0),
+    availabilityDetails: omsaAvailabilityDetails || {
+      hasData: false,
+      source: 'No-OMSA-Data',
+      lastUpdated: new Date().toISOString()
+    }
   };
 }
 
@@ -949,9 +962,11 @@ app.get('/api/products', async (req, res) => {
       const productIds = uniqueProducts.map(p => p.Product);
       const descriptions = await fetchProductDescriptions(productIds, preferredLanguage);
       
-      // Transform products with descriptions
-      const transformedProducts = uniqueProducts.map(p => 
-        transformProduct(p, descriptions[p.Product])
+      // Transform products with descriptions, pricing, and availability
+      const transformedProducts = await Promise.all(
+        uniqueProducts.map(p => 
+          transformProductWithPricing(p, descriptions[p.Product])
+        )
       );
       
       console.log(`Found ${transformedProducts.length} products for search: "${searchQuery}"`);

@@ -16,10 +16,6 @@
   }
 }
 
-// Product Details Styles moved to ProductDetailsComponent
-
-// Cart styles moved to CartComponent
-
 // Animation for refresh button
 @keyframes spin {
   from {
@@ -34,10 +30,6 @@
 .bottom-sections {
   margin-top: 24px;
 }
-
-// Customer details styles moved to CustomerDetailsComponent
-
-// Payment styles moved to PaymentComponent
 
 // Success and Error Views
 .success-view, .error-view {
@@ -151,5 +143,3 @@
     }
   }
 }
-
-// Barcode Scanner Modal Styles moved to ProductSearchComponent 
