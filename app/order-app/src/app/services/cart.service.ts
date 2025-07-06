@@ -27,6 +27,12 @@ export class CartService {
   constructor(private http: HttpClient) {}
 
   addToCart(product: Product, quantity: number = 1): void {
+    // Prevent adding products without valid prices
+    if (product.listPrice === null || product.listPrice === undefined || product.listPrice <= 0) {
+      console.warn('Cannot add product to cart: no valid price available', product);
+      return;
+    }
+
     const currentCart = this.cartSubject.value;
     const existingItemIndex = currentCart.items.findIndex(item => item.product.id === product.id);
 

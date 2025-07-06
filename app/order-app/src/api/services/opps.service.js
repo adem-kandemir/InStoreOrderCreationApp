@@ -498,9 +498,9 @@ class OppsService {
   }
 
   /**
-   * Fallback pricing for development/testing
+   * Fallback pricing for development/testing - returns no price data
    * @param {string|Array} productIds - Product IDs
-   * @returns {Object} Fallback pricing data
+   * @returns {Object} Fallback pricing data with no prices
    */
   getFallbackPricing(productIds) {
     const ids = Array.isArray(productIds) ? productIds : [productIds];
@@ -509,12 +509,12 @@ class OppsService {
     ids.forEach(id => {
       fallback[id] = {
         productId: id,
-        listPrice: 19.99,
-        salePrice: 19.99,
+        listPrice: null,
+        salePrice: null,
         currency: 'EUR',
-        priceValid: true,
+        priceValid: false,
         lastUpdated: new Date().toISOString(),
-        source: 'fallback'
+        source: 'no-price-data'
       };
     });
 

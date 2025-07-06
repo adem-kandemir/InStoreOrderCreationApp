@@ -34,8 +34,9 @@
       <div class="product-header">
         <div class="product-main-info">
           <h4>{{ selectedProduct.description }}</h4>
-          <p class="price">{{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
-          <p class="list-price">{{ 'productDetails.listPrice' | translate }}: {{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
+          <p class="price" *ngIf="selectedProduct.listPrice !== null">{{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
+          <p class="price no-price" *ngIf="selectedProduct.listPrice === null">{{ 'productDetails.noPrice' | translate }}</p>
+          <p class="list-price" *ngIf="selectedProduct.listPrice !== null">{{ 'productDetails.listPrice' | translate }}: {{ selectedProduct.listPrice | currency:'EUR':'symbol':'1.2-2' }}</p>
         </div>
         
         <div class="product-meta">
@@ -52,7 +53,10 @@
             <span class="meta-value">{{ selectedProduct.unit }}</span>
           </div>
           
-          <button class="add-to-cart-btn" (click)="onAddToCart(selectedProduct)">
+          <button class="add-to-cart-btn" 
+                  (click)="onAddToCart(selectedProduct)"
+                  [disabled]="selectedProduct.listPrice === null || selectedProduct.listPrice === 0"
+                  [title]="selectedProduct.listPrice === null || selectedProduct.listPrice === 0 ? ('productDetails.noPriceAddToCart' | translate) : ''">
             {{ 'productDetails.addToCart' | translate }}
           </button>
         </div>

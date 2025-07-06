@@ -213,7 +213,7 @@ function transformProduct(s4Product, description = '') {
     id: s4Product.Product,
     ean: s4Product.ProductStandardID || '',
     description: description || `Product ${s4Product.Product}`, // Use provided description or fallback
-    listPrice: parseFloat(s4Product.NetPriceAmount || '19.99'), // Default price if not available
+    listPrice: s4Product.NetPriceAmount ? parseFloat(s4Product.NetPriceAmount) : null, // No default price
     unit: s4Product.BaseUnit || 'EA',
     image: `/api/images/products/${s4Product.Product}.jpg`,
     inStoreStock: 0, // No availability data
@@ -317,11 +317,11 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
   const productId = s4Product.Product;
   
   // Get real pricing from OPPS
-  let pricing = { listPrice: 19.99, salePrice: 19.99, currency: 'EUR' }; // Default fallback
+  let pricing = { listPrice: null, salePrice: null, currency: 'EUR' }; // No default fallback
   
   try {
     const oppsPricing = await oppsService.getProductPricing(productId, { storeId, forceRefresh });
-    if (oppsPricing && oppsPricing[productId]) {
+    if (oppsPricing && oppsPricing[productId] && oppsPricing[productId].priceValid) {
       pricing = {
         listPrice: oppsPricing[productId].listPrice,
         salePrice: oppsPricing[productId].salePrice,
@@ -329,10 +329,10 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
       };
       console.log(`OPPS: Using real pricing for product ${productId}: €${pricing.listPrice}`);
     } else {
-      console.log(`OPPS: No pricing found for product ${productId}, using fallback`);
+      console.log(`OPPS: No valid pricing found for product ${productId}, returning null prices`);
     }
   } catch (error) {
-    console.log(`OPPS: Error getting pricing for product ${productId}, using fallback:`, error.message);
+    console.log(`OPPS: Error getting pricing for product ${productId}, returning null prices:`, error.message);
   }
 
   // Get real availability from OMSA

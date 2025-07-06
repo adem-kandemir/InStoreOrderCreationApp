@@ -66,7 +66,9 @@ export class LocalizationService {
         refresh: 'Refresh product details',
         noAvailability: 'No availability information available',
         detailedAvailability: 'Detailed Availability',
-        updated: 'Updated'
+        updated: 'Updated',
+        noPrice: 'No price available',
+        noPriceAddToCart: 'Cannot add to cart - no price available'
       },
       
       // Cart
@@ -265,7 +267,9 @@ export class LocalizationService {
         refresh: 'Produktdetails aktualisieren',
         noAvailability: 'Verfügbarkeitsinformationen nicht verfügbar',
         detailedAvailability: 'Detaillierte Verfügbarkeit',
-        updated: 'Aktualisiert'
+        updated: 'Aktualisiert',
+        noPrice: 'Kein Preis verfügbar',
+        noPriceAddToCart: 'Kann nicht zum Warenkorb hinzugefügt werden - kein Preis verfügbar'
       },
       
       // Cart
