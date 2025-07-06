@@ -130,7 +130,7 @@ Update the scripts with your actual credentials when available.
 
 ### 3. Verify Binding
 ```bash
-cf env api-backend | findstr VCAP_SERVICES
+cf env InStoreOrderCreationApp-srv | findstr VCAP_SERVICES
 ```
 
 ## 🐛 Troubleshooting
@@ -153,16 +153,16 @@ cf target
 cf service opps-credentials
 
 # Check app environment
-cf env api-backend
+cf env InStoreOrderCreationApp-srv
 ```
 
 ### View Logs
 ```bash
 # Application logs
-cf logs api-backend --recent
+cf logs InStoreOrderCreationApp-srv --recent
 
 # Stream logs
-cf logs api-backend
+cf logs InStoreOrderCreationApp-srv
 ```
 
 ## 📊 Service Status
@@ -203,9 +203,9 @@ const oppsService = vcapServices['user-provided']?.find(service =>
 ## 📞 Support
 
 For questions or issues:
-1. Check application logs: `cf logs api-backend --recent`
+1. Check application logs: `cf logs InStoreOrderCreationApp-srv --recent`
 2. Verify service binding: `cf service opps-credentials`
-3. Check VCAP_SERVICES: `cf env api-backend`
+3. Check VCAP_SERVICES: `cf env InStoreOrderCreationApp-srv`
 
 ---
 

@@ -61,25 +61,25 @@ Use the Cloud Foundry CLI to set environment variables for your deployed applica
 
 ```bash
 # OPPS Configuration
-cf set-env api-backend OPPS_CLIENT_ID "your_actual_opps_client_id"
-cf set-env api-backend OPPS_CLIENT_SECRET "your_actual_opps_client_secret"
-cf set-env api-backend OPPS_TOKEN_URL "https://auth.your-opps-system.com/oauth/token"
-cf set-env api-backend OPPS_BASE_URL "https://api.your-opps-system.com"
+cf set-env InStoreOrderCreationApp-srv OPPS_CLIENT_ID "your_actual_opps_client_id"
+cf set-env InStoreOrderCreationApp-srv OPPS_CLIENT_SECRET "your_actual_opps_client_secret"
+cf set-env InStoreOrderCreationApp-srv OPPS_TOKEN_URL "https://auth.your-opps-system.com/oauth/token"
+cf set-env InStoreOrderCreationApp-srv OPPS_BASE_URL "https://api.your-opps-system.com"
 
 # OMSA Configuration
-cf set-env api-backend OMSA_CLIENT_ID "your_actual_omsa_client_id"
-cf set-env api-backend OMSA_CLIENT_SECRET "your_actual_omsa_client_secret"
-cf set-env api-backend OMSA_TOKEN_URL "https://auth.your-omsa-system.com/oauth/token"
-cf set-env api-backend OMSA_BASE_URL "https://api.your-omsa-system.com"
+cf set-env InStoreOrderCreationApp-srv OMSA_CLIENT_ID "your_actual_omsa_client_id"
+cf set-env InStoreOrderCreationApp-srv OMSA_CLIENT_SECRET "your_actual_omsa_client_secret"
+cf set-env InStoreOrderCreationApp-srv OMSA_TOKEN_URL "https://auth.your-omsa-system.com/oauth/token"
+cf set-env InStoreOrderCreationApp-srv OMSA_BASE_URL "https://api.your-omsa-system.com"
 
 # OMF Configuration
-cf set-env api-backend OMF_CLIENT_ID "your_actual_omf_client_id"
-cf set-env api-backend OMF_CLIENT_SECRET "your_actual_omf_client_secret"
-cf set-env api-backend OMF_TOKEN_URL "https://auth.your-omf-system.com/oauth/token"
-cf set-env api-backend OMF_BASE_URL "https://api.your-omf-system.com"
+cf set-env InStoreOrderCreationApp-srv OMF_CLIENT_ID "your_actual_omf_client_id"
+cf set-env InStoreOrderCreationApp-srv OMF_CLIENT_SECRET "your_actual_omf_client_secret"
+cf set-env InStoreOrderCreationApp-srv OMF_TOKEN_URL "https://auth.your-omf-system.com/oauth/token"
+cf set-env InStoreOrderCreationApp-srv OMF_BASE_URL "https://api.your-omf-system.com"
 
 # Restart the application to apply changes
-cf restart api-backend
+cf restart InStoreOrderCreationApp-srv
 ```
 
 ### Step 2: Alternative - MTA Deployment Variables
@@ -93,7 +93,7 @@ ID: InStoreOrderCreationApp
 version: 1.0.0
 
 modules:
-  - name: api-backend
+  - name: InStoreOrderCreationApp-srv
     parameters:
       env:
         OPPS_CLIENT_ID: ${opps-client-id}
@@ -132,7 +132,7 @@ curl http://localhost:3000/api/health
 
 **Cloud Foundry:**
 ```bash
-curl https://your-api-backend-url.cfapps.eu10-004.hana.ondemand.com/api/health
+curl https://your-instoreordercreationapp-srv-url.cfapps.eu10-004.hana.ondemand.com/api/health
 ```
 
 **Expected Response:**
@@ -214,8 +214,8 @@ Set `LOG_LEVEL=debug` to enable detailed logging:
 LOG_LEVEL=debug npm start
 
 # Cloud Foundry
-cf set-env api-backend LOG_LEVEL debug
-cf restart api-backend
+cf set-env InStoreOrderCreationApp-srv LOG_LEVEL debug
+cf restart InStoreOrderCreationApp-srv
 ```
 
 ## 📖 API Documentation

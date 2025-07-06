@@ -15,7 +15,7 @@ modules:
     requires:
       - name: InStoreOrderCreationApp-auth
       - name: InStoreOrderCreationApp-destination
-      - name: api-backend-app
+      - name: InStoreOrderCreationApp-srv-app
     provides:
       - name: app-api
         properties:
@@ -26,11 +26,11 @@ modules:
         [
           {
             "name": "api-backend",
-            "url": "~{api-backend-app/url}",
+            "url": "~{image.png-app/url}",
             "forwardAuthToken": true
           }
         ]
-  - name: api-backend
+  - name: InStoreOrderCreationApp-srv
     type: nodejs
     path: app/order-app/src/api
     parameters:
@@ -64,7 +64,7 @@ modules:
       - name: omsa-credentials
       - name: omf-credentials
     provides:
-      - name: api-backend-app
+      - name: InStoreOrderCreationApp-srv-app
         properties:
           url: ${default-url}
 
