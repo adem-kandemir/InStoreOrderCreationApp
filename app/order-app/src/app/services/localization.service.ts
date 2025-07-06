@@ -30,7 +30,11 @@ export class LocalizationService {
         searching: 'Searching...',
         noResults: 'No products found',
         noProductsFound: 'No products found for',
-        tryAgain: 'Try Again'
+        tryAgain: 'Try Again',
+        loadMore: 'Load More Results',
+        loading: 'Loading...',
+        showingResults: 'Showing',
+        moreAvailable: 'more available'
       },
       
       // Barcode Scanner
@@ -225,7 +229,11 @@ export class LocalizationService {
         searching: 'Suche läuft...',
         noResults: 'Keine Produkte gefunden',
         noProductsFound: 'Keine Produkte gefunden für',
-        tryAgain: 'Erneut versuchen'
+        tryAgain: 'Erneut versuchen',
+        loadMore: 'Weitere Ergebnisse laden',
+        loading: 'Lädt...',
+        showingResults: 'Zeige',
+        moreAvailable: 'weitere verfügbar'
       },
       
       // Barcode Scanner

@@ -119,5 +119,29 @@
         </tr>
       </tbody>
     </table>
+    
+    <!-- Load More Button -->
+    <div *ngIf="hasMore" class="load-more-container">
+      <button class="load-more-btn" 
+              (click)="loadMoreResults()" 
+              [disabled]="isLoadingMore">
+        <div *ngIf="isLoadingMore" class="loading-spinner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+              <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
+              <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+        <span *ngIf="!isLoadingMore">{{ 'search.loadMore' | translate }}</span>
+        <span *ngIf="isLoadingMore">{{ 'search.loading' | translate }}</span>
+      </button>
+    </div>
+    
+    <!-- Results Count -->
+    <div class="results-info">
+      <span>{{ 'search.showingResults' | translate }} {{ searchResults.length }}</span>
+      <span *ngIf="hasMore"> • {{ 'search.moreAvailable' | translate }}</span>
+    </div>
   </div>
 </div> 

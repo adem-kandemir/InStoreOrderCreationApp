@@ -33,6 +33,13 @@ export class ProductSearchComponent implements OnInit, OnDestroy {
   @Output() productSelected = new EventEmitter<Product>();
   @Output() retrySearchRequested = new EventEmitter<void>();
   
+  // Pagination properties
+  currentPage = 1;
+  pageSize = 5;
+  hasMore = false;
+  isLoadingMore = false;
+  private allResults: Product[] = [];
+  
   // Barcode scanner properties
   isScanningBarcode = false;
   scannerError: string | null = null;
@@ -52,13 +59,20 @@ export class ProductSearchComponent implements OnInit, OnDestroy {
       switchMap(query => {
         if (query.trim().length === 0) {
           // Clear results if search is empty
+          this.resetPagination();
           this.updateSearchResults([]);
           this.updateIsSearching(false);
           return [];
         }
         
+        // Reset pagination for new search
+        this.resetPagination();
         this.updateIsSearching(true);
-        return this.productService.searchProducts(query);
+        console.log(`🔍 ProductSearchComponent: Searching for "${query}" with top=${this.pageSize}, skip=0`);
+        return this.productService.searchProducts(query, { 
+          top: this.pageSize, 
+          skip: 0 
+        });
       }),
       takeUntil(this.destroy$)
     ).subscribe({
@@ -71,12 +85,19 @@ export class ProductSearchComponent implements OnInit, OnDestroy {
           this.updateSearchErrorType(result.errorType || 'unknown');
           this.updateSearchErrorMessage(result.userMessage || 'Unable to search products at this time');
           this.updateSearchResults([]);
+          this.resetPagination();
         } else {
           // Handle success state
           this.updateSearchError(false);
           this.updateSearchErrorType(null);
           this.updateSearchErrorMessage(null);
-          this.updateSearchResults(result.products);
+          
+          // Update pagination state
+          this.allResults = result.products;
+          this.hasMore = result.hasMore || false;
+          this.currentPage = result.currentPage || 1;
+          
+          this.updateSearchResults(this.allResults);
         }
       },
       error: () => {
@@ -85,6 +106,7 @@ export class ProductSearchComponent implements OnInit, OnDestroy {
         this.updateSearchErrorType('unknown');
         this.updateSearchErrorMessage('Unable to search products at this time');
         this.updateSearchResults([]);
+        this.resetPagination();
       }
     });
   }
@@ -123,6 +145,44 @@ export class ProductSearchComponent implements OnInit, OnDestroy {
 
   onSelectProduct(product: Product): void {
     this.productSelected.emit(product);
+  }
+
+  // Pagination methods
+  resetPagination(): void {
+    this.currentPage = 1;
+    this.hasMore = false;
+    this.isLoadingMore = false;
+    this.allResults = [];
+  }
+
+  async loadMoreResults(): Promise<void> {
+    if (!this.hasMore || this.isLoadingMore || !this.searchQuery.trim()) {
+      return;
+    }
+
+    this.isLoadingMore = true;
+    const skip = this.currentPage * this.pageSize;
+
+    try {
+      console.log(`📄 ProductSearchComponent: Loading more results for "${this.searchQuery}" with top=${this.pageSize}, skip=${skip}`);
+      const result = await this.productService.searchProducts(this.searchQuery, {
+        top: this.pageSize,
+        skip: skip
+      }).toPromise();
+
+      if (result && !result.error) {
+        // Append new results to existing ones
+        this.allResults = [...this.allResults, ...result.products];
+        this.hasMore = result.hasMore || false;
+        this.currentPage = result.currentPage || (this.currentPage + 1);
+        
+        this.updateSearchResults(this.allResults);
+      }
+    } catch (error) {
+      console.error('Error loading more results:', error);
+    } finally {
+      this.isLoadingMore = false;
+    }
   }
 
   getErrorTitle(): string {

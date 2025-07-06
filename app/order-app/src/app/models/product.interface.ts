@@ -30,6 +30,14 @@ export interface Product {
 export interface ProductSearchResult {
   products: Product[];
   totalCount: number;
+  currentPage?: number;
+  pageSize?: number;
+  hasMore?: boolean;
+  pagination?: {
+    skip: number;
+    top: number;
+    nextSkip: number;
+  };
   error?: boolean;
   errorType?: string;
   userMessage?: string;

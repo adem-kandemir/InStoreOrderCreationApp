@@ -400,10 +400,13 @@ async function transformProductWithPricing(s4Product, description = '', storeId 
 }
 
 // Search products by Product ID and ProductStandardID (EAN)
-async function searchProductsByFields(escapedQuery) {
+async function searchProductsByFields(escapedQuery, top = 10, skip = 0) {
+  console.log(`🔍 searchProductsByFields called with: query="${escapedQuery}", top=${top}, skip=${skip}`);
+  
   const requestParams = {
     '$select': 'Product,ProductStandardID,BaseUnit,ProductGroup,GrossWeight,NetWeight,WeightUnit',
-    '$top': '10'
+    '$top': top.toString(),
+    '$skip': skip.toString()
   };
   
   try {
@@ -412,6 +415,7 @@ async function searchProductsByFields(escapedQuery) {
     requestParams['$filter'] = filter;
     
     console.log('Searching products by fields with filter:', filter);
+    console.log('🌐 S/4HANA request params:', requestParams);
     
     const data = await executeS4HanaRequest('/sap/opu/odata/sap/API_PRODUCT_SRV/A_Product', {
       params: requestParams
@@ -454,7 +458,7 @@ async function searchProductsByFields(escapedQuery) {
 }
 
 // Search products by description using A_ProductDescription
-async function searchProductsByDescription(escapedQuery, preferredLanguage = 'EN') {
+async function searchProductsByDescription(escapedQuery, preferredLanguage = 'EN', top = 10, skip = 0) {
   try {
     console.log(`Searching product descriptions for: "${escapedQuery}" in language: ${preferredLanguage}`);
     
@@ -465,7 +469,8 @@ async function searchProductsByDescription(escapedQuery, preferredLanguage = 'EN
     const requestParams = {
       '$select': 'Product,Language,ProductDescription',
       '$filter': descriptionFilter,
-      '$top': '10'
+      '$top': top.toString(),
+      '$skip': skip.toString()
     };
     
     console.log('Searching descriptions with filter:', descriptionFilter);
@@ -937,6 +942,8 @@ app.get('/api/sourcing/cache', async (req, res) => {
 
 app.get('/api/products', async (req, res) => {
   const searchQuery = req.query.search || '';
+  const top = parseInt(req.query.top) || 5; // Default to 5 results per page
+  const skip = parseInt(req.query.skip) || 0;
   
   try {
     // Escape single quotes in search query (declare at top level for use in catch blocks)
@@ -944,15 +951,18 @@ app.get('/api/products', async (req, res) => {
     
     // If search query is provided, use direct OData filtering
     if (searchQuery) {
-      console.log(`Searching products for: "${searchQuery}"`);
+      console.log(`Searching products for: "${searchQuery}" (top: ${top}, skip: ${skip})`);
       
       // Get language preference
       const preferredLanguage = req.headers['accept-language']?.substring(0, 2)?.toUpperCase() || req.query.lang?.toUpperCase() || 'EN';
       
-      // Search in both A_Product and A_ProductDescription
+      // Use the exact top and skip values as requested by frontend
+      // This ensures proper pagination: top=5,skip=0 -> top=5,skip=5 -> top=5,skip=10, etc.
+      console.log(`🔧 Backend: Using exact pagination values top=${top}, skip=${skip}`);
+      
       const [productResults, descriptionResults] = await Promise.all([
-        searchProductsByFields(escapedQuery),
-        searchProductsByDescription(escapedQuery, preferredLanguage)
+        searchProductsByFields(escapedQuery, top, skip),
+        searchProductsByDescription(escapedQuery, preferredLanguage, top, skip)
       ]);
       
       // Combine results and remove duplicates
@@ -961,28 +971,50 @@ app.get('/api/products', async (req, res) => {
         index === self.findIndex(p => p.Product === product.Product)
       );
       
-      // Fetch descriptions for all found products
-      const productIds = uniqueProducts.map(p => p.Product);
+      // Since we're fetching from SAP with the exact top/skip values,
+      // we should use the unique results as-is without additional slicing
+      const paginatedProducts = uniqueProducts;
+      
+      // Determine if there are more results available
+      // If we got fewer results than requested, there are no more results
+      const hasMore = uniqueProducts.length === top;
+      
+      // Total count represents the number of results in this page
+      const totalCount = uniqueProducts.length;
+      
+      // Fetch descriptions for paginated products
+      const productIds = paginatedProducts.map(p => p.Product);
       const descriptions = await fetchProductDescriptions(productIds, preferredLanguage);
       
       // Transform products with descriptions, pricing, and availability
       const transformedProducts = await Promise.all(
-        uniqueProducts.map(p => 
+        paginatedProducts.map(p => 
           transformProductWithPricing(p, descriptions[p.Product])
         )
       );
       
-      console.log(`Found ${transformedProducts.length} products for search: "${searchQuery}"`);
+      console.log(`Found ${transformedProducts.length} products for search: "${searchQuery}" (page ${Math.floor(skip/top) + 1}, hasMore: ${hasMore})`);
       
       res.json({
         products: transformedProducts,
-        totalCount: transformedProducts.length
+        totalCount: totalCount,
+        currentPage: Math.floor(skip / top) + 1,
+        pageSize: top,
+        hasMore: hasMore,
+        pagination: {
+          skip: skip,
+          top: top,
+          nextSkip: skip + top
+        }
       });
     } else {
       // If no search, return empty results (don't prefetch all products)
       return res.json({
         products: [],
         totalCount: 0,
+        currentPage: 1,
+        pageSize: top,
+        hasMore: false,
         message: 'Please enter a search term to find products'
       });
     }

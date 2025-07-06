@@ -12,7 +12,7 @@ export class ProductService {
 
   constructor(private http: HttpClient) {}
 
-  searchProducts(query: string, options?: { refresh?: boolean }): Observable<ProductSearchResult> {
+  searchProducts(query: string, options?: { refresh?: boolean; top?: number; skip?: number }): Observable<ProductSearchResult> {
     const params = new URLSearchParams();
     
     if (query) {
@@ -23,7 +23,17 @@ export class ProductService {
       params.append('refresh', 'true');
     }
     
+    if (options?.top) {
+      params.append('top', options.top.toString());
+    }
+    
+    if (options?.skip) {
+      params.append('skip', options.skip.toString());
+    }
+    
     const url = `${this.apiUrl}/products${params.toString() ? '?' + params.toString() : ''}`;
+    
+    console.log(`🌐 ProductService: Making API call to ${url}`);
     
     return this.http.get<ProductSearchResult>(url).pipe(
       catchError(error => {
@@ -33,6 +43,9 @@ export class ProductService {
         const errorResponse: ProductSearchResult = {
           products: [],
           totalCount: 0,
+          currentPage: 1,
+          pageSize: options?.top || 5,
+          hasMore: false,
           error: true,
           errorType: error.error?.errorType || 'unknown',
           userMessage: error.error?.userMessage || 'Unable to search products at this time',
