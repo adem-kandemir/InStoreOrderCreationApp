@@ -260,7 +260,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     this.currentStep = 'customer';
     // Scroll to the customer section
     setTimeout(() => {
-      const customerSection = document.querySelector('.customer-section');
+      const customerSection = document.querySelector('.bottom-sections');
       if (customerSection) {
         customerSection.scrollIntoView({ behavior: 'smooth' });
       }
@@ -272,7 +272,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
       this.currentStep = 'payment';
       // Scroll to the payment section
       setTimeout(() => {
-        const paymentSection = document.querySelector('.payment-section');
+        const paymentSection = document.querySelector('app-payment');
         if (paymentSection) {
           paymentSection.scrollIntoView({ behavior: 'smooth' });
         }
@@ -292,7 +292,7 @@ export class NewOrderComponent implements OnInit, OnDestroy {
     this.currentStep = 'customer';
     // Scroll to the customer section
     setTimeout(() => {
-      const customerSection = document.querySelector('.customer-section');
+      const customerSection = document.querySelector('.bottom-sections');
       if (customerSection) {
         customerSection.scrollIntoView({ behavior: 'smooth' });
       }
