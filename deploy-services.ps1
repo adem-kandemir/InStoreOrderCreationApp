@@ -8,16 +8,29 @@
     - OPPS (Price and Promotion Service)
     - OMSA (Sourcing and Availability Service) 
     - OMF (Order Management and Fulfillment)
+    
+    After successful deployment, the script can automatically restart the application
+    to pick up the updated environment variables.
 .EXAMPLE
     .\deploy-services.ps1
+    Deploy services and restart application (default behavior)
 .EXAMPLE
     .\deploy-services.ps1 -UpdateExisting
+    Update existing services and restart application
+.EXAMPLE
+    .\deploy-services.ps1 -DeleteFirst -RestartApp:$false
+    Delete and recreate all services without restarting the application
+.EXAMPLE
+    .\deploy-services.ps1 -UpdateExisting -AppName "MyApp-srv"
+    Update services and restart a different application
 #>
 
 param(
     [switch]$UpdateExisting = $false,
     [switch]$DeleteFirst = $false,
-    [string]$Environment = "dev"
+    [switch]$RestartApp = $true,
+    [string]$Environment = "dev",
+    [string]$AppName = "InStoreOrderCreationApp-srv"
 )
 
 # Color functions for output
@@ -54,53 +67,71 @@ function Deploy-UserProvidedService {
     
     Write-Info "Processing service: $ServiceName"
     
-    # Convert credentials to JSON
-    $credentialsJson = $Credentials | ConvertTo-Json -Compress
+    # Create temporary JSON file for credentials to handle special characters properly
+    $tempFile = [System.IO.Path]::GetTempFileName() + ".json"
+    $Credentials | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempFile -Encoding UTF8
     
-    # Check if service exists
-    $serviceExists = cf service $ServiceName 2>&1
-    $serviceExists = $LASTEXITCODE -eq 0
-    
-    if ($serviceExists) {
-        if ($DeleteFirst) {
-            Write-Warning "Deleting existing service: $ServiceName"
-            cf delete-service $ServiceName -f
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Service $ServiceName deleted"
-                $serviceExists = $false
+    try {
+        # Check if service exists
+        $serviceExists = cf service $ServiceName 2>&1
+        $serviceExists = $LASTEXITCODE -eq 0
+        
+        if ($serviceExists) {
+            if ($DeleteFirst) {
+                Write-Warning "Deleting existing service: $ServiceName"
+                cf delete-service $ServiceName -f
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Service $ServiceName deleted"
+                    $serviceExists = $false
+                } else {
+                    Write-Error "Failed to delete service $ServiceName"
+                    return $false
+                }
+            } elseif ($UpdateExisting) {
+                Write-Warning "Updating existing service: $ServiceName"
+                # Try to update using JSON file
+                cf update-user-provided-service $ServiceName -p $tempFile
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Service $ServiceName updated successfully"
+                    return $true
+                } else {
+                    Write-Warning "Direct update failed. Attempting delete and recreate..."
+                    # If update fails, try delete and recreate
+                    cf delete-service $ServiceName -f
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Info "Service $ServiceName deleted, recreating..."
+                        $serviceExists = $false
+                    } else {
+                        Write-Error "Failed to delete service $ServiceName for recreation"
+                        return $false
+                    }
+                }
             } else {
-                Write-Error "Failed to delete service $ServiceName"
-                return $false
+                Write-Warning "Service $ServiceName already exists. Use -UpdateExisting to update or -DeleteFirst to recreate."
+                return $true
             }
-        } elseif ($UpdateExisting) {
-            Write-Warning "Updating existing service: $ServiceName"
-            cf update-user-provided-service $ServiceName -p $credentialsJson
+        }
+        
+        if (-not $serviceExists) {
+            Write-Info "Creating new service: $ServiceName"
+            cf create-user-provided-service $ServiceName -p $tempFile
             if ($LASTEXITCODE -eq 0) {
-                Write-Success "Service $ServiceName updated successfully"
+                Write-Success "Service $ServiceName created successfully"
                 return $true
             } else {
-                Write-Error "Failed to update service $ServiceName"
+                Write-Error "Failed to create service $ServiceName"
                 return $false
             }
-        } else {
-            Write-Warning "Service $ServiceName already exists. Use -UpdateExisting to update or -DeleteFirst to recreate."
-            return $true
+        }
+        
+        return $false
+    }
+    finally {
+        # Clean up temporary file
+        if (Test-Path $tempFile) {
+            Remove-Item $tempFile -Force
         }
     }
-    
-    if (-not $serviceExists) {
-        Write-Info "Creating new service: $ServiceName"
-        cf create-user-provided-service $ServiceName -p $credentialsJson
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Service $ServiceName created successfully"
-            return $true
-        } else {
-            Write-Error "Failed to create service $ServiceName"
-            return $false
-        }
-    }
-    
-    return $false
 }
 
 # OPPS Credentials (Price and Promotion Service)
@@ -117,9 +148,9 @@ $oppsSuccess = Deploy-UserProvidedService -ServiceName "opps-credentials" -Crede
 # OMSA Credentials (Sourcing and Availability Service) - Now Active!
 Write-Info "🔧 Deploying OMSA credentials..."
 $omsaCredentials = @{
-    client_id = "sb-omsa-broker!b56615|provider-xsuaa-broker!b7248"
-    client_secret = "2ab72a69-48d6-46ba-a123-4dd3b7a16255`$qBJ1xaPjr_nsD4zXjQ3IninXMIv5brsJpPh-1GV2cm4="
-    token_url = "https://omsa-132fsx5y.authentication.eu20.hana.ondemand.com/oauth/token"
+    client_id = "sb-b0f8796c-113a-4147-a22b-bca581eccdde!b59628|provider-xsuaa-broker!b7248"
+    client_secret = "1877cd31-8c72-4f37-b51c-47672f761602$N3xDBSSfMXWgrbKEnhnfvQeRhde_uod8IQVJ8qnENCc="
+    token_url = "https://rbos-showcase-zzai01ti.authentication.eu20.hana.ondemand.com/oauth/token"
     base_url = "https://api.sourcing-availability.cloud.sap"
 }
 
@@ -159,9 +190,30 @@ if ($omfSuccess) {
 Write-Info "📋 Current user-provided services:"
 cf services | Select-String "user-provided"
 
-Write-Info "🎯 Next steps:"
-Write-Host "1. Update OMSA and OMF credentials in this script"
-Write-Host "2. Run deployment: .\build-and-deploy.ps1"
-Write-Host "3. Services will be automatically bound via mta.yaml"
+# Restart application if requested and any services were updated
+$anyServiceUpdated = $oppsSuccess -or $omsaSuccess -or $omfSuccess
+if ($RestartApp -and $anyServiceUpdated) {
+    Write-Info "🔄 Restarting application to pick up updated credentials..."
+    
+    # Check if the application exists
+    $appExists = cf app $AppName 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Info "Restarting $AppName..."
+        cf restart $AppName
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "✅ Application $AppName restarted successfully"
+        } else {
+            Write-Warning "⚠️  Failed to restart $AppName. You may need to restart it manually."
+        }
+    } else {
+        Write-Warning "⚠️  Application $AppName not found. Skipping restart."
+    }
+} elseif ($RestartApp -and -not $anyServiceUpdated) {
+    Write-Info "ℹ️  No services were updated, skipping application restart."
+} else {
+    Write-Info "🎯 Next steps:"
+    Write-Host "1. Restart your application: cf restart $AppName"
+    Write-Host "2. Or run full deployment: .\build-and-deploy.ps1"
+}
 
 Write-Success "🎉 Service deployment completed!" 

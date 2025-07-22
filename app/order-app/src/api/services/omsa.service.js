@@ -22,9 +22,10 @@ class OmsaService {
     // Site mapping for inventory availability
     this.siteMapping = {
       '1100': { type: 'online', name: 'Online Store 1100' },    // Online distribution center
+      '1104': { type: 'store', name: 'Store 1104' },    // In-store location
       '1106': { type: 'store', name: 'Store 1106' },    // In-store location
-      '1107': { type: 'store', name: 'Store 1107' },      // In-store location  
-      '1108': { type: 'store', name: 'Store 1108' }  // In-store location
+      '1105': { type: 'store', name: 'Store 1105' },    // In-store location
+      '1107': { type: 'store', name: 'Store 1107' }     // In-store location  
     };
     
     this.initialize();
@@ -506,7 +507,7 @@ class OmsaService {
               id: productId
             },
             unitOfMeasure: {
-              salesUnitCode: "ST"
+              salesUnitCode: "PCE"
             }
           }
         ],
@@ -515,13 +516,16 @@ class OmsaService {
             id: "1100"
           },
           {
-            id: "1107"
-          },
-          {
-            id: "1108"
+            id: "1104"
           },
           {
             id: "1106"
+          },
+          {
+            id: "1105"
+          },
+          {
+            id: "1107"
           }
         ]
       };
@@ -701,24 +705,31 @@ class OmsaService {
           availableFrom: new Date().toISOString().split('T')[0]
         },
         {
+          siteId: '1104',
+          siteName: 'Store 1104',
+          siteType: 'store',
+          quantity: Math.floor(stock.inStore * 0.25),
+          availableFrom: new Date().toISOString().split('T')[0]
+        },
+        {
           siteId: '1106',
           siteName: 'Store 1106',
           siteType: 'store',
-          quantity: Math.floor(stock.inStore * 0.4),
+          quantity: Math.floor(stock.inStore * 0.25),
+          availableFrom: new Date().toISOString().split('T')[0]
+        },
+        {
+          siteId: '1105',
+          siteName: 'Store 1105',
+          siteType: 'store',
+          quantity: Math.floor(stock.inStore * 0.25),
           availableFrom: new Date().toISOString().split('T')[0]
         },
         {
           siteId: '1107', 
           siteName: 'Store 1107',
           siteType: 'store',
-          quantity: Math.floor(stock.inStore * 0.3),
-          availableFrom: new Date().toISOString().split('T')[0]
-        },
-        {
-          siteId: '1108',
-          siteName: 'Store 1108',
-          siteType: 'store',
-          quantity: Math.floor(stock.inStore * 0.3),
+          quantity: Math.floor(stock.inStore * 0.25),
           availableFrom: new Date().toISOString().split('T')[0]
         }
       ],
@@ -808,7 +819,7 @@ class OmsaService {
           },
           quantity: Number(parseFloat(item.quantity).toFixed(1)),
           unitOfMeasure: {
-            salesUnitCode: 'ST' // Standardize to ST for OMSA compatibility
+            salesUnitCode: 'PCE' // Standardize to PCE for OMSA compatibility
           }
         })),
         destination: {
